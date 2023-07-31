@@ -1,5 +1,5 @@
 __version__ = '5.0.45'
-__author__  = 'MetaQuotes Ltd.'
+__author__  = 'Wiktor Jelen'
 
 # timeframes
 TIMEFRAME_M1                        = 1
