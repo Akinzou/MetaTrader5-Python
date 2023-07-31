@@ -16,13 +16,13 @@ To use this library, you need:
 To install the library, use `pip`:
 
 ```bash
-pip install library_name
+pip install PythonMetaTrader5
 ```
 #Getting Started
 
 Import the library in your Python script:
 
-``import library_name
+``import PythonMetaTrader5 as mt5
 ``
 
 Connect to the MetaTrader 5 platform:
