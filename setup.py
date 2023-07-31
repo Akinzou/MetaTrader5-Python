@@ -13,7 +13,7 @@ LONG_DESCRIPTION = 'Connect MT5 with python'
 
 # Setting up
 setup(
-    name="MetaTrader5Python",
+    name="MetaTrader5-Python",
     version=VERSION,
     author="Wiktor Jelen",
     author_email="wiktorjn@gmail.com",
