@@ -23,8 +23,8 @@ pip install PythonMetaTrader5
 
 Import the library in your Python script:
 
-``from MetaTrader5 import *
-``
+```from MetaTrader5 import *
+```
 
 Initialize the MetaTrader 5 library by calling the initialize() function.
 
