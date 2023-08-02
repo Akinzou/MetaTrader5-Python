@@ -19,7 +19,7 @@ To install the library, use `pip`:
 ```bash
 pip install PythonMetaTrader5
 ```
-#Getting Started
+# Getting Started
 
 Import the library in your Python script:
 
