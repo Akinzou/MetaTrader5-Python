@@ -65,8 +65,6 @@ broker = Broker(log="your_mt5_login", password="your_mt5_password", server="your
 ## Example Usage:
 ```
 from MetaTrader5 import *
-import colorama
-from internal_order_send import Broker
 
 # Initialize the MetaTrader 5 library
 initialize()
