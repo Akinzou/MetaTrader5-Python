@@ -7,9 +7,10 @@ This Python library enables you to connect with the MetaTrader 5 trading platfor
 
 To use this library, you need:
 
-- MetaTrader 5 installed on your device.
-- A trading account on the MetaTrader 5 platform (Demo or Live) that you can log in to.
-- Python version 3.x installed on your device.
+Python 3.x
+MetaTrader 5 trading platform installed
+MetaTrader 5 Python API (MetaTrader5 module)
+colorama
 
 ## Installation
 
@@ -22,35 +23,78 @@ pip install PythonMetaTrader5
 
 Import the library in your Python script:
 
-``import PythonMetaTrader5 as mt5
+``from MetaTrader5 import *
 ``
 
-Connect to the MetaTrader 5 platform:
+Initialize the MetaTrader 5 library by calling the initialize() function.
 
-``mt5 = library_name.MetaTrader5()
-mt5.connect()
-``
-
-Log in to your trading account:
-
-``mt5.login(login='your_login', password='your_password')
-``
-
-Execute trading operations, fetch market data, etc. Examples:
-
-```# Execute a buy order
-mt5.buy(symbol='EURUSD', volume=0.1, sl=1.2000, tp=1.2500)
-
-# Get the current price for a symbol
-price = mt5.get_symbol_price('EURUSD')
-print("Current price for EURUSD:", price)
-
-# Fetch historical data for a symbol
-history_data = mt5.get_symbol_history('EURUSD', timeframe='H1', from_date='2023-01-01', to_date='2023-07-31')
-```
-
-After using the library, you can disconnect:
+Create an instance of the Broker class by providing your MetaTrader 5 login credentials and server:
 
 ```
-mt5.disconnect()
+broker = Broker(log="your_mt5_login", password="your_mt5_password", server="your_mt5_server")
 ```
+### After successful login, you can perform trading operations such as placing orders and managing positions.
+
+
+## Available Functions:
+### Placing Orders:
+
+``Buy(symbol, volume, price=None, *, comment=None, ticket=None):`` Places a Buy market order or limit order if price is specified.
+
+``BuySL(symbol, volume, sl, price=None, *, comment=None, ticket=None):`` Places a Buy market order or limit order with a Stop Loss (SL) price if price is specified.
+
+``Sell(symbol, volume, price=None, *, comment=None, ticket=None):`` Places a Sell market order or limit order if price is specified.
+
+``SellSL(symbol, volume, sl, price=None, *, comment=None, ticket=None):`` Places a Sell market order or limit order with a Stop Loss (SL) price if price is specified.
+
+``BuyLimit(symbol, volume, stoplimit, price=None, comment=None, ticket=None):`` Places a Buy limit order with the specified stoplimit price.
+
+``SellLimit(symbol, volume, stoplimit, price=None, comment=None, ticket=None):`` Places a Sell limit order with the specified stoplimit price.
+
+
+### Managing Positions:
+``Close(symbol, *, comment=None, ticket=None):`` Closes all positions for the specified symbol or a specific position indicated by ticket.
+
+``CancelOrders(symbol):`` Cancels all pending orders for the specified symbol.
+
+
+### Miscellaneous:
+``Disconnect():`` Closes the connection to the MetaTrader 5 trading platform.
+
+
+## Example Usage:
+```
+from MetaTrader5 import *
+import colorama
+from internal_order_send import Broker
+
+# Initialize the MetaTrader 5 library
+initialize()
+
+# Create a broker instance and log in
+broker = Broker(log="your_mt5_login", password="your_mt5_password", server="your_mt5_server")
+
+# Place a Buy market order for 0.1 lot of EURUSD
+result = broker.Buy("EURUSD", 0.1)
+
+# Check the result of the order
+if result and result.retcode == TRADE_RETCODE_DONE:
+    print(colorama.Fore.GREEN + "Order executed successfully!")
+else:
+    print(colorama.Fore.RED + "Failed to execute the order.")
+
+# Close all positions for EURUSD
+broker.Close("EURUSD")
+
+# Cancel all pending orders for EURUSD
+broker.CancelOrders("EURUSD")
+
+# Disconnect from the MetaTrader 5 platform
+broker.Disconnect()
+```
+
+
+## Note:
+It is important to have the MetaTrader 5 trading platform running and logged in with the provided credentials before using this library.
+This library is provided "as is" without any warranty. Use it at your own risk.
+Before using this library in a live trading environment, thoroughly test it on a demo account to ensure its correctness and reliability.
