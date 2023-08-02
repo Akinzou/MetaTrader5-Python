@@ -73,13 +73,10 @@ initialize()
 broker = Broker(log="your_mt5_login", password="your_mt5_password", server="your_mt5_server")
 
 # Place a Buy market order for 0.1 lot of EURUSD
-result = broker.Buy("EURUSD", 0.1)
+broker.Buy("EURUSD", 0.1)
 
-# Check the result of the order
-if result and result.retcode == TRADE_RETCODE_DONE:
-    print(colorama.Fore.GREEN + "Order executed successfully!")
-else:
-    print(colorama.Fore.RED + "Failed to execute the order.")
+# Place a limit order for gold (if price is lower than 1900 it will be execute immediately
+broker.BuyLimit("XAUUSD", 0.01, 1900)
 
 # Close all positions for EURUSD
 broker.Close("EURUSD")
