@@ -17,6 +17,7 @@ colorama
 To install the library, use `pip`:
 
 ```bash
+pip install MetaTrader5
 pip install PythonMetaTrader5
 ```
 # Getting Started
@@ -32,7 +33,7 @@ Initialize the MetaTrader 5 library by calling the initialize() function.
 Create an instance of the Broker class by providing your MetaTrader 5 login credentials and server:
 
 ```
-broker = Broker(log="your_mt5_login", password="your_mt5_password", server="your_mt5_server")
+broker = Broker(log=your_mt5_login, password="your_mt5_password", server="your_mt5_server")
 ```
 ### After successful login, you can perform trading operations such as placing orders and managing positions.
 
@@ -71,7 +72,7 @@ from MetaTrader5 import *
 initialize()
 
 # Create a broker instance and log in
-broker = Broker(log="your_mt5_login", password="your_mt5_password", server="your_mt5_server")
+broker = Broker(log=your_mt5_login, password="your_mt5_password", server="your_mt5_server")
 
 # Place a Buy market order for 0.1 lot of EURUSD
 broker.Buy("EURUSD", 0.1)

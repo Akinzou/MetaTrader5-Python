@@ -2,6 +2,8 @@
 from MetaTrader5 import *
 import colorama
 
+colorama.init(convert=True)
+
 def SpacerStart():
     print(colorama.Style.RESET_ALL + "//////////////////////////////")
 
