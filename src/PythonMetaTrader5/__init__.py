@@ -97,48 +97,53 @@ class Broker:
 
     # Close all specific orders
     def Close(self, symbol, *, comment=None, ticket=None):
-        SpacerStart()
         close = False
         if ticket is not None:
             positions = positions_get(ticket=ticket)
         else:
             positions = positions_get(symbol=symbol)
-
         tried = 0
         done = 0
+        lenpositions = len(positions)
+        if positions:
+            while True:
+                for pos in positions:
+                    # process only simple buy, sell, without limit or stop
+                    if pos.type == ORDER_TYPE_BUY or pos.type == ORDER_TYPE_SELL:
+                        tried += 1
+                        for tries in range(10):
+                            info = symbol_info_tick(symbol)
+                            if info is None:
+                                return None
+                            if pos.type == ORDER_TYPE_BUY:
+                                r = self._RawOrderClose(ORDER_TYPE_SELL, symbol, pos.volume, info.bid, comment, pos.ticket)
+                                close = True
+                            else:
+                                r = self._RawOrderClose(ORDER_TYPE_BUY, symbol, pos.volume, info.ask, comment, pos.ticket)
+                                close = True
+                            # check results
+                            if r is None:
+                                return None
+                            if r.retcode != TRADE_RETCODE_REQUOTE and r.retcode != TRADE_RETCODE_PRICE_OFF:
+                                if r.retcode == TRADE_RETCODE_DONE:
+                                    SpacerStart()
+                                    print(colorama.Fore.BLUE + str(self.log), ": closing all ", symbol)
+                                    SpacerEnd()
+                                    done += 1
+                                    lenpositions -= 1
+                                    break
+                        if r.retcode in self.RetCodes:
+                            print(colorama.Fore.RED + "ERROR CAN NOT CLOSE", str(self.log), symbol)
+                            print(self.RetCodes[r.retcode])
+                            print(colorama.Style.RESET_ALL)
+                            time.sleep(0.5)
+                if not(lenpositions) or r.retcode == 10027:
+                    break
 
-        for pos in positions:
-            # process only simple buy, sell
-            if pos.type == ORDER_TYPE_BUY or pos.type == ORDER_TYPE_SELL:
-                tried += 1
-                for tries in range(10):
-                    info = symbol_info_tick(symbol)
-                    if info is None:
-                        return None
-                    if pos.type == ORDER_TYPE_BUY:
-                        r = self._RawOrderClose(ORDER_TYPE_SELL, symbol, pos.volume, info.bid, comment, pos.ticket)
-                        print(colorama.Fore.BLUE + str(self.log), ": closing all ", symbol)
-                        close = True
-                    else:
-                        r = self._RawOrderClose(ORDER_TYPE_BUY, symbol, pos.volume, info.ask, comment, pos.ticket)
-                        print(colorama.Fore.BLUE + str(self.log), ": closing all ", symbol)
-                        close = True
-                    # check results
-                    if r is None:
-                        return None
-                    if r.retcode != TRADE_RETCODE_REQUOTE and r.retcode != TRADE_RETCODE_PRICE_OFF:
-                        if r.retcode == TRADE_RETCODE_DONE:
-                            done += 1
-                        break
         if not close:
+            SpacerStart()
             print(str(self.log), ": there is no orders to close")
-        SpacerEnd()
-
-        if done > 0:
-            if done == tried:
-                return True
-            else:
-                return "Partially"
+            SpacerEnd()
         return False
 
 
@@ -368,19 +373,35 @@ class Broker:
 
 
     def CancelOrders(self, symbol):
-        SpacerStart()
         cancel = False
         orders = orders_get()
         limit_orders = [order for order in orders if
                         order.type == ORDER_TYPE_BUY_LIMIT or order.type == ORDER_TYPE_SELL_LIMIT]
-        for order in limit_orders:
-            if order.symbol == symbol:
-                cancel = True
-                self._RawCancelOrder(order.ticket)
-                print(colorama.Fore.BLUE + str(self.log), ": order have been just cancelled on: ", symbol)
+        lenpositions = len(limit_orders)
+        print(len(limit_orders))
+        while True:
+            for order in limit_orders:
+                if order.symbol == symbol:
+                    cancel = True
+                    r = self._RawCancelOrder(order.ticket)
+
+                    if r.retcode != TRADE_RETCODE_REQUOTE and r.retcode != TRADE_RETCODE_PRICE_OFF:
+                        if r.retcode == TRADE_RETCODE_DONE:
+                            SpacerStart()
+                            print(colorama.Fore.BLUE + str(self.log), ": order have been just cancelled on: ", symbol)
+                            SpacerEnd()
+                            lenpositions -= 1
+                            break
+                if r.retcode in self.RetCodes:
+                    print(colorama.Fore.RED + "ERROR CAN NOT CLOSE", str(self.log), symbol)
+                    print(self.RetCodes[r.retcode])
+                    print(colorama.Style.RESET_ALL)
+                    time.sleep(0.5)
+
+            if not lenpositions or r.retcode == 10027:
+                break
 
         if not cancel:
             print(str(self.log), ": there is no orders to cancel")
-        SpacerEnd()
     def Disconnect(self):
         shutdown()
