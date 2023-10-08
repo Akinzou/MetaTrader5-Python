@@ -12,7 +12,7 @@ def SpacerEnd():
     print()
 
 class Broker:
-    RetCodes = {10027: "Enable Algo Trading in MetaTrader5 app", 10018: "Market closed"}
+    RetCodes = {10027: "Enable Algo Trading in MetaTrader5 app", 10018: "Market closed", 10016: "Wrong SL"}
     log = None
     password = None
     server = None
@@ -158,7 +158,7 @@ class Broker:
             r = r = self._RawOrder(ORDER_TYPE_BUY, symbol, volume, info.ask, comment, ticket)
             if r.retcode  == 10009:
                 SpacerStart()
-                print(colorama.Fore.RED + str(self.log), ": long ", symbol)
+                print(colorama.Fore.GREEN + str(self.log), ": long ", symbol)
                 SpacerEnd()
                 break
 
@@ -181,20 +181,35 @@ class Broker:
 
 
     def BuySL(self, symbol, volume, sl, price=None, *, comment=None, ticket=None):
-        SpacerStart()
-        print(colorama.Fore.GREEN + str(self.log), ": long ", symbol, " sl ", sl)
-        SpacerEnd()
         # with direct call
         if price is not None:
             return self._RawOrder(ORDER_TYPE_BUY, symbol, volume, price, sl, comment, ticket)
         # no price, we try several times with current price
-        for tries in range(10):
+        while True:
             info = symbol_info_tick(symbol)
             r = self._RawOrder(ORDER_TYPE_BUY, symbol, volume, info.ask, sl, comment, ticket)
-            if r is None:
-                return None
-            if r.retcode != TRADE_RETCODE_REQUOTE and r.retcode != TRADE_RETCODE_PRICE_OFF:
+            if r.retcode  == 10009:
+                SpacerStart()
+                print(colorama.Fore.GREEN + str(self.log), ": long ", symbol, "sl: ", sl)
+                SpacerEnd()
                 break
+
+            else:
+                if r.retcode in self.RetCodes:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN", str(self.log), ": long ", symbol)
+                    print(self.RetCodes[r.retcode])
+                    print(colorama.Style.RESET_ALL)
+                    if r.retcode == 10027 or r.retcode == 10016:
+                        break
+                    time.sleep(0.5)
+
+
+                else:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN TRYING AGAIN", str(self.log), ": long ", symbol)
+                    print("RetCode: ", r.retcode)
+                    print("Comment: ", r.comment)
+                    print(colorama.Style.RESET_ALL)
+                    time.sleep(0.5)
         return r
 
 
@@ -251,7 +266,7 @@ class Broker:
                     print(colorama.Fore.RED + "ERROR CAN NOT OPEN", str(self.log), " short ", symbol, " sl ", sl)
                     print(self.RetCodes[r.retcode])
                     print(colorama.Style.RESET_ALL)
-                    if r.retcode == 10027:
+                    if r.retcode == 10027 or r.retcode == 10016:
                         break
                     time.sleep(0.5)
 
@@ -378,7 +393,6 @@ class Broker:
         limit_orders = [order for order in orders if
                         order.type == ORDER_TYPE_BUY_LIMIT or order.type == ORDER_TYPE_SELL_LIMIT]
         lenpositions = len(limit_orders)
-        print(len(limit_orders))
         while True:
             for order in limit_orders:
                 if order.symbol == symbol:
@@ -401,7 +415,9 @@ class Broker:
             if not lenpositions or r.retcode == 10027:
                 break
 
-        if not cancel:
+        if not len(limit_orders):
+            SpacerStart()
             print(str(self.log), ": there is no orders to cancel")
+            SpacerEnd()
     def Disconnect(self):
         shutdown()
