@@ -1,8 +1,8 @@
 # internal order send
+import time
+
 from MetaTrader5 import *
 import colorama
-
-colorama.init(convert=True)
 
 def SpacerStart():
     print(colorama.Style.RESET_ALL + "//////////////////////////////")
@@ -12,6 +12,7 @@ def SpacerEnd():
     print()
 
 class Broker:
+    RetCodes = {10027: "Enable Algo Trading in MetaTrader5 app", 10018: "Market closed"}
     log = None
     password = None
     server = None
@@ -26,7 +27,7 @@ class Broker:
             self.server = str(server)
 
         else:
-            print("Login failed")
+            print(colorama.Fore.RED + "Login failed: ")
 
     def login(self):
         print(colorama.Fore.YELLOW + "Login on: ", str(self.log))
@@ -43,6 +44,7 @@ class Broker:
             "type": order_type,
             "price": price,
             "deviation": 10,
+            "type_filling": ORDER_FILLING_IOC
         }
         if comment is not None:
             order["comment"] = comment
@@ -59,8 +61,8 @@ class Broker:
             "volume": volume,
             "type": order_type,
             "price": price,
-            "deviation": 10
-            # "type_filling": ORDER_FILLING_IOC
+            "deviation": 10,
+            "type_filling": ORDER_FILLING_IOC
         }
         if comment is not None:
             order["comment"] = comment
@@ -83,8 +85,8 @@ class Broker:
             "volume": volume,
             "type": order_type,
             "price": limit,
-            "deviation": 10
-            # "type_filling": ORDER_FILLING_IOC
+            "deviation": 10,
+            "type_filling": ORDER_FILLING_IOC
         }
         if comment is not None:
             order["comment"] = comment
@@ -142,21 +144,35 @@ class Broker:
 
     # Buy order
     def Buy(self, symbol, volume, price=None, *, comment=None, ticket=None):
-        SpacerStart()
-        print(colorama.Fore.GREEN + str(self.log), ": long ", symbol)
-        SpacerEnd()
         # with direct call
         if price is not None:
             return self._RawOrder(ORDER_TYPE_BUY, symbol, volume, price, comment, ticket)
         # no price, we try several times with current price
-        for tries in range(10):
+        while True:
             info = symbol_info_tick(symbol)
-            r = self._RawOrder(ORDER_TYPE_BUY, symbol, volume, info.ask, comment, ticket)
-            if r is None:
-                return None
-            if r.retcode != TRADE_RETCODE_REQUOTE and r.retcode != TRADE_RETCODE_PRICE_OFF:
+            r = r = self._RawOrder(ORDER_TYPE_BUY, symbol, volume, info.ask, comment, ticket)
+            if r.retcode  == 10009:
+                SpacerStart()
+                print(colorama.Fore.RED + str(self.log), ": long ", symbol)
+                SpacerEnd()
                 break
-        return r
+
+            else:
+                if r.retcode in self.RetCodes:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN", str(self.log), ": long ", symbol)
+                    print(self.RetCodes[r.retcode])
+                    print(colorama.Style.RESET_ALL)
+                    if r.retcode == 10027:
+                        break
+                    time.sleep(0.5)
+
+
+                else:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN TRYING AGAIN", str(self.log), ": long ", symbol)
+                    print("RetCode: ", r.retcode)
+                    print("Comment: ", r.comment)
+                    print(colorama.Style.RESET_ALL)
+                    time.sleep(0.5)
 
 
     def BuySL(self, symbol, volume, sl, price=None, *, comment=None, ticket=None):
@@ -179,84 +195,163 @@ class Broker:
 
     # Sell order
     def Sell(self, symbol, volume, price=None, *, comment=None, ticket=None):
-        SpacerStart()
-        print(colorama.Fore.RED + str(self.log), ": short ", symbol)
-        SpacerEnd()
         # with direct call
         if price is not None:
             return self._RawOrder(ORDER_TYPE_SELL, symbol, volume, price, comment, ticket)
         # no price, we try several times with current price
-        for tries in range(10):
+        while True:
             info = symbol_info_tick(symbol)
             r = self._RawOrder(ORDER_TYPE_SELL, symbol, volume, info.bid, comment, ticket)
-            if r is None:
-                return None
-            if r.retcode != TRADE_RETCODE_REQUOTE and r.retcode != TRADE_RETCODE_PRICE_OFF:
+            if r.retcode  == 10009:
+                SpacerStart()
+                print(colorama.Fore.RED + str(self.log), ": short ", symbol)
+                SpacerEnd()
                 break
-        return r
+
+            else:
+                if r.retcode in self.RetCodes:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN", str(self.log), " short ", symbol)
+                    print(self.RetCodes[r.retcode])
+                    print(colorama.Style.RESET_ALL)
+                    if r.retcode == 10027:
+                        break
+                    time.sleep(0.5)
+
+
+                else:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN TRYING AGAIN", str(self.log), ": short ", symbol)
+                    print("RetCode: ", r.retcode)
+                    print("Comment: ", r.comment)
+                    print(colorama.Style.RESET_ALL)
+                    time.sleep(0.5)
 
 
     def SellSL(self, symbol, volume, sl, price=None, *, comment=None, ticket=None):
-        SpacerStart()
-        print(colorama.Fore.RED + str(self.log), ": short ", symbol, " sl ", sl)
-        SpacerEnd()
+
         # with direct call
         if price is not None:
             return self._RawOrder(ORDER_TYPE_SELL, symbol, volume, price, float(sl), comment, ticket)
         # no price, we try several times with current price
-        for tries in range(10):
+        while True:
             info = symbol_info_tick(symbol)
             r = self._RawOrder(ORDER_TYPE_SELL, symbol, volume, info.bid, float(sl), comment, ticket)
-            if r is None:
-                return None
-            if r.retcode != TRADE_RETCODE_REQUOTE and r.retcode != TRADE_RETCODE_PRICE_OFF:
+            if r.retcode  == 10009:
+                SpacerStart()
+                print(colorama.Fore.RED + str(self.log), ": short ", symbol, " sl ", sl)
+                SpacerEnd()
                 break
+
+            else:
+                if r.retcode in self.RetCodes:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN", str(self.log), " short ", symbol, " sl ", sl)
+                    print(self.RetCodes[r.retcode])
+                    print(colorama.Style.RESET_ALL)
+                    if r.retcode == 10027:
+                        break
+                    time.sleep(0.5)
+
+
+                else:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN TRYING AGAIN", str(self.log), ": short ", symbol, " sl ", sl)
+                    print("RetCode: ", r.retcode)
+                    print("Comment: ", r.comment)
+                    print(colorama.Style.RESET_ALL)
+                    time.sleep(0.5)
+
         return r
 
 
     def SellLimit(self, symbol, volume, stoplimit, price=None, comment=None, ticket=None):
-        # with direct call
-        SpacerStart()
+        OpenedInstantly = False
+
         if price is not None:
             return print("Price have to be none")
         # no price, we try several times with current price
-        for tries in range(10):
+        while True:
             info = symbol_info_tick(symbol)
+
             if (float(info.bid) >= float(stoplimit)):
                 r = self._RawOrder(ORDER_TYPE_SELL, symbol, float(volume), info.bid, comment, ticket)
-                print(colorama.Fore.RED + str(self.log), ": opened short on: ", symbol, "beacues of ask is > or = limit price")
+
+                OpenedInstantly = True
             else:
-                r = self._RawOrderLimit(ORDER_TYPE_SELL_LIMIT, symbol, float(volume), info.bid, float(stoplimit), comment,
-                                   ticket)
-                print(colorama.Fore.RED + str(self.log), ": opened short limit on: ", symbol, " price: ", stoplimit)
-            SpacerEnd()
-            if r is None:
-                return None
-            if r.retcode != TRADE_RETCODE_REQUOTE and r.retcode != TRADE_RETCODE_PRICE_OFF:
+                r = self._RawOrderLimit(ORDER_TYPE_SELL_LIMIT, symbol, float(volume), info.bid, float(stoplimit),
+                                        comment,
+                                        ticket)
+                OpenedInstantly = False
+
+            if r.retcode  == 10009:
+                if OpenedInstantly:
+                    SpacerStart()
+                    print(colorama.Fore.RED + str(self.log), ": opened short on: ", symbol,
+                          "beacues of ask is > or = limit price")
+                    SpacerEnd()
+                else:
+                    SpacerStart()
+                    print(colorama.Fore.RED + str(self.log), ": opened short limit on: ", symbol, " price: ", stoplimit)
+                    SpacerEnd()
                 break
+
+            else:
+                if r.retcode in self.RetCodes:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN", str(self.log), " sell limit on: ", symbol, " price: ", stoplimit)
+                    print(self.RetCodes[r.retcode])
+                    print(colorama.Style.RESET_ALL)
+                    if r.retcode == 10027:
+                        break
+                    time.sleep(0.5)
+
+                else:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN TRYING AGAIN", str(self.log), " sell limit on: ", symbol, " price: ", stoplimit)
+                    print("RetCode: ", r.retcode)
+                    print("Comment: ", r.comment)
+                    print(colorama.Style.RESET_ALL)
+                    time.sleep(0.5)
         return r
 
 
     def BuyLimit(self, symbol, volume, stoplimit, price=None, comment=None, ticket=None):
-        SpacerStart()
+        OpenedInstantly = False
         if price is not None:
-            return self._RawOrderLimit(ORDER_TYPE_BUY_LIMIT, symbol, float(volume), price, float(stoplimit), comment, ticket)
+            return print("Price have to be none")
         # no price, we try several times with current price
-        for tries in range(10):
+        while True:
             info = symbol_info_tick(symbol)
+
             if (float(info.ask) <= float(stoplimit)):
                 r = self._RawOrder(ORDER_TYPE_BUY, symbol, float(volume), info.ask, comment, ticket)
-                print(colorama.Fore.GREEN + str(self.log), ": opened long on: ", symbol, "beacues of ask is < or = limit price")
+                OpenedInstantly = True
             else:
                 r = self._RawOrderLimit(ORDER_TYPE_BUY_LIMIT, symbol, float(volume), info.ask, float(stoplimit), comment, ticket)
-                print(colorama.Fore.GREEN + str(self.log), ": opened long limit on: ", symbol, " price: ", stoplimit)
+                OpenedInstantly = False
 
-            SpacerEnd()
-
-            if r is None:
-                return None
-            if r.retcode != TRADE_RETCODE_REQUOTE and r.retcode != TRADE_RETCODE_PRICE_OFF:
+            if r.retcode  == 10009:
+                if OpenedInstantly:
+                    SpacerStart()
+                    print(colorama.Fore.GREEN + str(self.log), ": opened long on: ", symbol, "beacues of ask is < or = limit price")
+                    SpacerEnd()
+                else:
+                    SpacerStart()
+                    print(colorama.Fore.GREEN + str(self.log), ": opened long limit on: ", symbol, " price: ", stoplimit)
+                    SpacerEnd()
                 break
+
+            else:
+                if r.retcode in self.RetCodes:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN", str(self.log), " long limit on: ", symbol, " price: ", stoplimit)
+                    print(self.RetCodes[r.retcode])
+                    print(colorama.Style.RESET_ALL)
+                    if r.retcode == 10027:
+                        break
+                    time.sleep(0.5)
+
+
+                else:
+                    print(colorama.Fore.RED + "ERROR CAN NOT OPEN TRYING AGAIN", str(self.log), " long limit on: ", symbol, " price: ", stoplimit)
+                    print("RetCode: ", r.retcode)
+                    print("Comment: ", r.comment)
+                    print(colorama.Style.RESET_ALL)
+                    time.sleep(0.5)
         return r
 
 
