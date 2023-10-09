@@ -1,8 +1,9 @@
 # internal order send
 import time
-
 from MetaTrader5 import *
 import colorama
+
+colorama.init()
 
 def SpacerStart():
     print(colorama.Style.RESET_ALL + "//////////////////////////////")
@@ -27,14 +28,20 @@ class Broker:
             self.server = str(server)
 
         else:
-            print(colorama.Fore.RED + "Login failed: ")
+            print(colorama.Fore.RED + "Login failed: ", str(self.log))
 
-    def login(self):
-        print(colorama.Fore.YELLOW + "Login on: ", str(self.log))
-        if login(self.log, self.password, server=self.server):
-            print(colorama.Fore.GREEN + "OK")
-        else:
-            print(colorama.Fore.RED + "ERROR")
+    def login(self, ToEffect = False):
+        while True:
+            print(colorama.Fore.YELLOW + "Login on: ", str(self.log))
+            print(self.log)
+            if login(self.log, self.password, server=self.server):
+                print(colorama.Fore.GREEN + "OK")
+                time.sleep(0.5)
+                return True
+            if ToEffect==False:
+                print(colorama.Fore.RED + "ERROR")
+                return False
+
 
     def _RawOrderClose(self, order_type, symbol, volume, price, comment=None, ticket=None):
         order = {
