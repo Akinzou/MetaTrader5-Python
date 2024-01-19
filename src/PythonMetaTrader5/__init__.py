@@ -2,6 +2,7 @@
 import time
 from MetaTrader5 import *
 import colorama
+import pyautogui
 
 colorama.init()
 
@@ -144,8 +145,13 @@ class Broker:
                             print(self.RetCodes[r.retcode])
                             print(colorama.Style.RESET_ALL)
                             time.sleep(0.5)
-                if not(lenpositions) or r.retcode == 10027:
+                if not(lenpositions):
                     break
+                if r.retcode == 10027:
+                    print(colorama.Fore.GREEN + "Enabling algotrading", str(self.log), symbol)
+                    print(colorama.Style.RESET_ALL)
+                    time.sleep(1)
+                    pyautogui.hotkey('ctrl', 'e')
 
         if not close:
             SpacerStart()
@@ -175,7 +181,10 @@ class Broker:
                     print(self.RetCodes[r.retcode])
                     print(colorama.Style.RESET_ALL)
                     if r.retcode == 10027:
-                        break
+                        print(colorama.Fore.GREEN + "Enabling algotrading", str(self.log), symbol)
+                        print(colorama.Style.RESET_ALL)
+                        time.sleep(1)
+                        pyautogui.hotkey('ctrl', 'e')
                     time.sleep(0.5)
 
 
@@ -206,8 +215,13 @@ class Broker:
                     print(colorama.Fore.RED + "ERROR CAN NOT OPEN", str(self.log), ": long ", symbol)
                     print(self.RetCodes[r.retcode])
                     print(colorama.Style.RESET_ALL)
-                    if r.retcode == 10027 or r.retcode == 10016:
+                    if r.retcode == 10016:
                         break
+                    if r.retcode == 10027:
+                        print(colorama.Fore.GREEN + "Enabling algotrading", str(self.log), symbol)
+                        print(colorama.Style.RESET_ALL)
+                        time.sleep(1)
+                        pyautogui.hotkey('ctrl', 'e')
                     time.sleep(0.5)
 
 
@@ -241,7 +255,10 @@ class Broker:
                     print(self.RetCodes[r.retcode])
                     print(colorama.Style.RESET_ALL)
                     if r.retcode == 10027:
-                        break
+                        print(colorama.Fore.GREEN + "Enabling algotrading", str(self.log), symbol)
+                        print(colorama.Style.RESET_ALL)
+                        time.sleep(1)
+                        pyautogui.hotkey('ctrl', 'e')
                     time.sleep(0.5)
 
 
@@ -273,8 +290,13 @@ class Broker:
                     print(colorama.Fore.RED + "ERROR CAN NOT OPEN", str(self.log), " short ", symbol, " sl ", sl)
                     print(self.RetCodes[r.retcode])
                     print(colorama.Style.RESET_ALL)
-                    if r.retcode == 10027 or r.retcode == 10016:
+                    if r.retcode == 10016:
                         break
+                    if r.retcode == 10027:
+                        print(colorama.Fore.GREEN + "Enabling algotrading", str(self.log), symbol)
+                        print(colorama.Style.RESET_ALL)
+                        time.sleep(1)
+                        pyautogui.hotkey('ctrl', 'e')
                     time.sleep(0.5)
 
 
@@ -325,7 +347,10 @@ class Broker:
                     print(self.RetCodes[r.retcode])
                     print(colorama.Style.RESET_ALL)
                     if r.retcode == 10027:
-                        break
+                        print(colorama.Fore.GREEN + "Enabling algotrading", str(self.log), symbol)
+                        print(colorama.Style.RESET_ALL)
+                        time.sleep(1)
+                        pyautogui.hotkey('ctrl', 'e')
                     time.sleep(0.5)
 
                 else:
@@ -369,7 +394,10 @@ class Broker:
                     print(self.RetCodes[r.retcode])
                     print(colorama.Style.RESET_ALL)
                     if r.retcode == 10027:
-                        break
+                        print(colorama.Fore.GREEN + "Enabling algotrading", str(self.log), symbol)
+                        print(colorama.Style.RESET_ALL)
+                        time.sleep(1)
+                        pyautogui.hotkey('ctrl', 'e')
                     time.sleep(0.5)
 
 
@@ -419,8 +447,13 @@ class Broker:
                     print(colorama.Style.RESET_ALL)
                     time.sleep(0.5)
 
-            if not lenpositions or r.retcode == 10027:
+            if not lenpositions:
                 break
+            if r.retcode == 10027:
+                print(colorama.Fore.GREEN + "Enabling algotrading", str(self.log), symbol)
+                print(colorama.Style.RESET_ALL)
+                time.sleep(1)
+                pyautogui.hotkey('ctrl', 'e')
 
         if not len(limit_orders):
             SpacerStart()
