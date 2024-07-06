@@ -67,6 +67,7 @@ broker = Broker(log=your_mt5_login, password="your_mt5_password", server="your_m
 ## Example Usage:
 ```
 from MetaTrader5 import *
+from PythonMetaTrader5 import *
 
 # Initialize the MetaTrader 5 library
 initialize()
