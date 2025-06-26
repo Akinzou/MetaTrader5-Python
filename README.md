@@ -1,6 +1,6 @@
-# Python Library for MetaTrader 5 Connection
+# Python Library for MetaTrader 5 Connection [![PyPI Downloads](https://static.pepy.tech/badge/pythonmetatrader5)](https://pepy.tech/projects/pythonmetatrader5)
 
-![MetaTrader 5]
+MetaTrader 5
 This Python library enables you to connect with the MetaTrader 5 trading platform and interact with its features using Python. It allows executing trading operations, fetching market data, receiving notifications, and more.
 
 ## Requirements
