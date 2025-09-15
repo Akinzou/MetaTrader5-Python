@@ -8,7 +8,7 @@ version = "2.0"
 description = "Connect MT5 with Python"
 readme = "README.md"
 requires-python = ">=3.6"
-license = { text = "MIT" }
+license = {text = "CC BY-NC 4.0"}
 
 authors = [{ name = "Wiktor Jelen", email = "wiktorjn@gmail.com" }]
 
@@ -30,3 +30,4 @@ Homepage = "https://github.com/Akinzou/MetaTrader5-Python"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
