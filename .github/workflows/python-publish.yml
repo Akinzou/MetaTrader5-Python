@@ -1,11 +1,11 @@
 name: Publish to PyPI
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: 
 
 permissions:
   contents: read
-  deployments: write   # żeby pokazać wpis w Deployments
+  deployments: write
 
 jobs:
   build-and-publish:
@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout
-      - uses: actions/checkout@v4
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -40,6 +40,4 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          # Jeśli retry joba – nie wywal 400, tylko pomiń istniejące pliki
-          twine upload --skip-existing dist/*
+        run: twine upload --skip-existing dist/*
