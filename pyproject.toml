@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "PythonMetaTrader5"
-version = "2.02"
+version = "2.1"
 description = "Connect MT5 with Python"
 readme = "README.md"
 requires-python = ">=3.6"
@@ -30,6 +30,7 @@ Homepage = "https://github.com/Akinzou/MetaTrader5-Python"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
 
 
 
