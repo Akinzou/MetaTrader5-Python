@@ -13,7 +13,7 @@ jobs:
 
     # >>> KLUCZOWE: to sprawia, że job jest deploymentem <<<
     environment:
-      name: pypi
+      name: PyPi
       url: https://pypi.org/project/PythonMetaTrader5/
 
     steps:
