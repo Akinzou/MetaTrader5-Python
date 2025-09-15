@@ -1,12 +1,20 @@
 name: Publish to PyPI
 
-
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write   # pozwala GitHubowi utworzyć/aktualizować wpis deploymentu
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+
+    # >>> KLUCZOWE: to sprawia, że job jest deploymentem <<<
+    environment:
+      name: pypi
+      url: https://pypi.org/project/PythonMetaTrader5/
 
     steps:
       - name: Checkout
