@@ -28,7 +28,7 @@ Includes utilities to read positions, close them, and manage pending orders.
 ## Installation
 
 ```bash
-pip install MetaTrader5
+pip install PythonMetaTrader5
 ```
 
 > Ensure your MetaTrader 5 terminal is running, logged in, and **Algo Trading** is enabled.
@@ -245,6 +245,7 @@ broker.CancelOrders("EURUSD")
 ## License
 
 CC-BY-NC 4.0
+
 
 
 
