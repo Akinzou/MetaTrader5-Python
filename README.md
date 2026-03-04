@@ -15,13 +15,13 @@ Includes utilities to read positions, close them, and manage pending orders.
 
 ## Features
 
-- One function to open market positions: `OpenPosition(...)`
-- SL/TP can be passed **as absolute prices** or **offsets in POINTS**
-- Automatic price normalization to instrument `digits`
-- Consistent error handling (common MT5 retcodes mapped to messages)
-- Backward‑compat wrappers: `Buy`, `Sell`, `BuySL`, `SellSL`
-- Position helpers: `GetPositions`, `GetPosition`, `GetPositionsBySymbol`
-- Closing and pending orders helpers: `Close`, `SellLimit`, `BuyLimit`, `CancelOrders`
+-  One function to open market positions: `OpenPosition(...)`
+-  SL/TP can be passed **as absolute prices** or **offsets in POINTS**
+-  Automatic price normalization to instrument `digits`
+-  Consistent error handling (common MT5 retcodes mapped to messages)
+-  Backward‑compat wrappers: `Buy`, `Sell`, `BuySL`, `SellSL`
+-  Position helpers: `GetPositions`, `GetPosition`, `GetPositionsBySymbol`
+-  Closing and pending orders helpers: `Close`, `SellLimit`, `BuyLimit`, `CancelOrders`
 
 ---
 
@@ -245,6 +245,7 @@ broker.CancelOrders("EURUSD")
 ## License
 
 CC-BY-NC 4.0
+
 
 
 
