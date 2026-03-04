@@ -15,13 +15,13 @@ Includes utilities to read positions, close them, and manage pending orders.
 
 ## Features
 
--  One function to open market positions: `OpenPosition(...)`
--  SL/TP can be passed **as absolute prices** or **offsets in POINTS**
--  Automatic price normalization to instrument `digits`
--  Consistent error handling (common MT5 retcodes mapped to messages)
--  Backward‑compat wrappers: `Buy`, `Sell`, `BuySL`, `SellSL`
--  Position helpers: `GetPositions`, `GetPosition`, `GetPositionsBySymbol`
--  Closing and pending orders helpers: `Close`, `SellLimit`, `BuyLimit`, `CancelOrders`
+* **Unified Execution Engine**: Single core function to open market positions (`OpenPosition(...)`).
+* **Dynamic Risk Management**: SL/TP can be passed as **absolute prices** or flexible **offsets in POINTS**.
+* **Input Sanitization**: Automatic price normalization to the correct instrument `digits`, preventing API rejection.
+* **Robust Telemetry**: Consistent error handling with common MT5 `retcodes` mapped to readable messages.
+* **Backward Compatibility**: Seamless wrappers for legacy integration (`Buy`, `Sell`, `BuySL`, `SellSL`).
+* **State Helpers**: Efficient querying tools for current market exposure (`GetPositions`, `GetPosition`, `GetPositionsBySymbol`).
+* **Lifecycle Management**: Complete control over active and pending trades (`Close`, `SellLimit`, `BuyLimit`, `CancelOrders`).
 
 ---
 
@@ -245,6 +245,7 @@ broker.CancelOrders("EURUSD")
 ## License
 
 CC-BY-NC 4.0
+
 
 
 
