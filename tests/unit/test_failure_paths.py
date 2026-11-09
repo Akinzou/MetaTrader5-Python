@@ -11,7 +11,7 @@ from .fakes import FakeTerminal, make_position, receipt
 
 
 def btc_position() -> Position:
-    return make_position(9, symbol="BTCUSD", price_open=1.0, price_current=1.0)
+    return make_position(9, symbol="BTCUSD", price_open=1.0, price_current=1.0, magic=42)
 
 
 @pytest.mark.parametrize("policy", [{"attempts": 0}, {"delay_seconds": -1.0}])

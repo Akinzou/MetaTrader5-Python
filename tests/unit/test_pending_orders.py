@@ -40,13 +40,14 @@ def order(ticket: int, symbol: str, magic: int = 42) -> PendingOrder:
     )
 
 
-def test_cancel_removes_every_pending_order_of_the_symbol(
+def test_cancel_removes_the_traders_own_pending_orders_of_the_symbol(
     trader: Trader, terminal: FakeTerminal
 ) -> None:
     terminal.open_orders = [order(5, "EURUSD"), order(6, "XAUUSD"), order(7, "EURUSD", magic=1)]
     result = trader.cancel_pending_orders("EURUSD")
     assert isinstance(result, Ok)
-    assert terminal.sent == [CancelRequest(order=5), CancelRequest(order=7)]
+    # Order 7 has another magic; the own-magic default leaves it (ADR 0011).
+    assert terminal.sent == [CancelRequest(order=5)]
 
 
 def test_cancel_with_magic_filter(trader: Trader, terminal: FakeTerminal) -> None:

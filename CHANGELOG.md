@@ -17,6 +17,11 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
   values that may be bad at runtime; the constructors raise `ValueError`, and
   a `kind` that is not a `StopKind` raises `TypeError`.
 - Magic-number support for entries and as a filter for close/cancel/queries.
+  `close_positions()` / `cancel_pending_orders()` default to the trader's own
+  magic; `ANY_MAGIC` acts on the whole account; a `ticket` is closed whatever
+  its magic (ADR 0011). `Broker.Close` / `CancelOrders` keep acting on every
+  magic, as in 2.x. `connect(magic=...)` must be an integer from 0 to 2**64-1; a magic-0
+  trader logs a warning when a close/cancel affects magic-0 (manual) trades.
 - Volume validation against the symbol's min/max/step.
 - Filling mode chosen from the symbol's allowed modes.
 - Hidden symbols are selected into Market Watch automatically.

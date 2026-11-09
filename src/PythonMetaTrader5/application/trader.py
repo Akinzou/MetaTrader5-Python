@@ -5,12 +5,20 @@ from __future__ import annotations
 from dataclasses import replace
 from types import TracebackType
 
+from PythonMetaTrader5.application import magic_scope
 from PythonMetaTrader5.application.batch import BatchFailure, run_batch, with_magic
 from PythonMetaTrader5.application.entries import StopInput, validate_entry
 from PythonMetaTrader5.application.execution import RetryPolicy, execute
 from PythonMetaTrader5.application.ports import Clock, Terminal
 from PythonMetaTrader5.domain.errors import TradeError
-from PythonMetaTrader5.domain.inputs import symbol_filter, ticket_filter
+from PythonMetaTrader5.domain.inputs import (
+    ANY_MAGIC,
+    AnyMagic,
+    magic_filter,
+    own_magic,
+    symbol_filter,
+    ticket_filter,
+)
 from PythonMetaTrader5.domain.market import PendingKind, PendingOrder, Position, TradeReceipt
 from PythonMetaTrader5.domain.orders import Side, validate_comment
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
@@ -30,7 +38,11 @@ class Trader:
     ) -> None:
         self._terminal = terminal
         self._clock = clock
-        self._magic = magic
+        own = own_magic(magic)
+        if isinstance(own, Err):
+            # A constructor cannot return a Result; connect() reports this as Err.
+            raise ValueError(own.error.message)
+        self._magic = own.value
         self._deviation = deviation
         self._retry = retry or RetryPolicy()
 
@@ -115,20 +127,30 @@ class Trader:
         symbol: str | None = None,
         *,
         ticket: int | None = None,
-        magic: int | None = None,
+        magic: int | AnyMagic | None = None,
         comment: str | None = None,
     ) -> Result[list[TradeReceipt], BatchFailure]:
         """Close matching positions; ``ticket`` takes precedence over ``symbol``.
 
-        With neither ``symbol``, ``ticket`` nor ``magic`` this closes EVERY position
-        on the account, manual ones included. Pass ``magic`` to touch only your own.
+        Only the trader's own ``magic`` unless another ``magic`` is given;
+        ``magic=ANY_MAGIC`` closes every position, manual ones included. A
+        ``ticket`` is closed whatever its magic.
         """
         text = validate_comment(comment)
         if isinstance(text, Err):
             return Err(BatchFailure((), (text.error,)))
-        listed = self.positions(None if ticket is not None else symbol, ticket=ticket, magic=magic)
+        own = magic_scope.resolve(self._magic, magic, ticket)
+        if isinstance(own, Err):
+            return Err(BatchFailure((), (own.error,)))
+        listed = self.positions(
+            None if ticket is not None else symbol, ticket=ticket, magic=own.value
+        )
         if isinstance(listed, Err):
             return Err(BatchFailure((), (listed.error,)))
+        scope = None if ticket is not None else symbol
+        magic_scope.warn_about_default(
+            self._magic, magic, ticket, listed.value, lambda: self.positions(scope, magic=ANY_MAGIC)
+        )
         # One spec lookup per symbol, not per position: close-all is time-critical.
         specs: dict[str, Result[SymbolSpec, TradeError]] = {}
 
@@ -143,39 +165,66 @@ class Trader:
         self,
         symbol: str | None = None,
         *,
-        magic: int | None = None,
+        magic: int | AnyMagic | None = None,
         kind: PendingKind | None = None,
     ) -> Result[list[TradeReceipt], BatchFailure]:
-        listed = self.pending_orders(symbol, magic=magic, kind=kind)
+        """Cancel matching pending orders of the trader's own ``magic`` by default.
+
+        ``magic=ANY_MAGIC`` cancels every order on the account, manual ones included.
+        """
+        own = magic_scope.resolve(self._magic, magic, None)
+        if isinstance(own, Err):
+            return Err(BatchFailure((), (own.error,)))
+        listed = self.pending_orders(symbol, magic=own.value, kind=kind)
         if isinstance(listed, Err):
             return Err(BatchFailure((), (listed.error,)))
+        magic_scope.warn_about_default(
+            self._magic,
+            magic,
+            None,
+            listed.value,
+            lambda: self.pending_orders(symbol, magic=ANY_MAGIC, kind=kind),
+        )
         return run_batch(listed.value, self._cancel_one)
 
     # ----------------------------------------------------------------- queries
 
     def positions(
-        self, symbol: str | None = None, *, ticket: int | None = None, magic: int | None = None
+        self,
+        symbol: str | None = None,
+        *,
+        ticket: int | None = None,
+        magic: int | AnyMagic | None = None,
     ) -> Result[list[Position], TradeError]:
+        """Every position by default: a read never needs the own-magic guard."""
+        checked = magic_filter(magic)
+        if isinstance(checked, Err):
+            return checked
         for check in (symbol_filter(symbol), ticket_filter(ticket)):
             if isinstance(check, Err):
                 return check
         listed = self._terminal.positions(symbol=symbol, ticket=ticket)
-        return listed if isinstance(listed, Err) else Ok(with_magic(listed.value, magic))
+        if isinstance(listed, Err):
+            return listed
+        return Ok(with_magic(listed.value, checked.value))
 
     def pending_orders(
         self,
         symbol: str | None = None,
         *,
-        magic: int | None = None,
+        magic: int | AnyMagic | None = None,
         kind: PendingKind | None = None,
     ) -> Result[list[PendingOrder], TradeError]:
-        checked = symbol_filter(symbol)
+        checked = magic_filter(magic)
         if isinstance(checked, Err):
             return checked
+        symbol_checked = symbol_filter(symbol)
+        if isinstance(symbol_checked, Err):
+            return symbol_checked
         listed = self._terminal.pending_orders(symbol=symbol)
         if isinstance(listed, Err):
             return listed
-        orders = with_magic(listed.value, magic)
+        orders = with_magic(listed.value, checked.value)
         return Ok(orders if kind is None else [o for o in orders if o.kind is kind])
 
     def shutdown(self) -> None:

@@ -16,7 +16,7 @@ from PythonMetaTrader5.adapters.system_clock import SystemClock
 from PythonMetaTrader5.application.ports import Clock, Credentials, Terminal, parse_login
 from PythonMetaTrader5.application.trader import Trader
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
-from PythonMetaTrader5.domain.inputs import positive_number
+from PythonMetaTrader5.domain.inputs import ANY_MAGIC, positive_number
 from PythonMetaTrader5.domain.market import PendingKind, TradeReceipt
 from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.legacy import views
@@ -194,7 +194,8 @@ class Broker:
             # 2.x crashed here without closing anything; 3.x would close the account.
             log.error("%s: Close needs a symbol or ticket", self.log)
             return False
-        result = trader.close_positions(symbol, ticket=ticket, comment=comment)
+        # 2.x closed every magic; the 3.x own-magic default would skip them.
+        result = trader.close_positions(symbol, ticket=ticket, magic=ANY_MAGIC, comment=comment)
         if isinstance(result, Err):
             log.error("%s: closing %s: %s", self.log, symbol, result.error)
             return False
@@ -211,7 +212,7 @@ class Broker:
             log.error("%s: CancelOrders needs a symbol", self.log)
             return
         # 2.x only ever cancelled limit orders; stop orders stay untouched.
-        result = trader.cancel_pending_orders(symbol, kind=PendingKind.LIMIT)
+        result = trader.cancel_pending_orders(symbol, magic=ANY_MAGIC, kind=PendingKind.LIMIT)
         if isinstance(result, Err):
             log.error("%s: cancelling orders on %s: %s", self.log, symbol, result.error)
 

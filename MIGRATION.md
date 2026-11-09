@@ -99,9 +99,9 @@ logging.basicConfig(level=logging.INFO)
 | `Broker(login, password, server)` | `connect(login, password, server)` → `Ok(trader)` / `Err(error)` |
 | `OpenPosition(s, "buy", v, sl=1000, sl_type="offset")` | `trader.open_position(s, "buy", v, sl=Stop.points(1000))` |
 | `OpenPosition(s, "buy", v, sl=1.05)` | `trader.open_position(s, "buy", v, sl=1.05)` |
-| `Close("EURUSD")` | `trader.close_positions("EURUSD")` |
+| `Close("EURUSD")` | `trader.close_positions("EURUSD", magic=ANY_MAGIC)`; without `magic` only the trader's own positions close (ADR 0011) |
 | `BuyLimit(s, v, stoplimit=1.1)` | `trader.place_limit_order(s, "buy", v, 1.1)` (no automatic market fill when crossed) |
-| `CancelOrders(s)` | `trader.cancel_pending_orders(s, kind=PendingKind.LIMIT)` |
+| `CancelOrders(s)` | `trader.cancel_pending_orders(s, magic=ANY_MAGIC, kind=PendingKind.LIMIT)` |
 | `GetPositions(as_dict=True)` | see below |
 | `Disconnect()` | `trader.shutdown()` or `with trader:` |
 

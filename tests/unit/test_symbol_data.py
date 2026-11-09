@@ -86,7 +86,7 @@ def test_a_position_on_a_symbol_with_broken_data_can_still_be_closed(
     trader: Trader, terminal: FakeTerminal, broken: dict[str, float]
 ) -> None:
     terminal.specs["EURUSD"] = replace(EURUSD, **broken)
-    terminal.open_positions = [make_position(1)]
+    terminal.open_positions = [make_position(1, magic=42)]
     closed = trader.close_positions("EURUSD")
     assert isinstance(closed, Ok)
     assert len(closed.value) == 1

@@ -21,7 +21,7 @@ from .fakes import FakeClock, FakeTerminal, make_position
 
 
 def position(ticket: int, volume: float = 0.5) -> Position:
-    return make_position(ticket, volume=volume, price_open=1.0, price_current=1.0)
+    return make_position(ticket, volume=volume, price_open=1.0, price_current=1.0, magic=42)
 
 
 def test_empty_symbol_is_rejected_instead_of_meaning_all(
