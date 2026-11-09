@@ -79,6 +79,9 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
 - `CancelOrders` and `Close` could loop forever.
 - Limit orders confirmed with `PLACED` (10008) were re-sent.
 - `len(None)` crash when the terminal returned no positions.
+- Comments of 30 or more UTF-16 units (most emoji count as 2), which the
+  `MetaTrader5` package refuses although its docs allow 31, and comments that
+  are not `str`, are refused locally as `INVALID_ARGUMENT`.
 
 ## [2.3.2]
 

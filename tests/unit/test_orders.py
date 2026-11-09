@@ -25,12 +25,35 @@ def test_side_has_opposite() -> None:
     assert Side.SELL.opposite is Side.BUY
 
 
-def test_comment_within_terminal_limit_is_kept() -> None:
+# Boundaries measured with order_check on MetaTrader5 5.0.6231 (demo account):
+# the package counts UTF-16 code units. 29 pass, 30 get [-2] Invalid "comment"
+# argument, whether ASCII, Polish, CJK (1 unit each) or emoji (2 units each).
+# It also accepts a lone surrogate, so that counts as one unit.
+@pytest.mark.parametrize(
+    "comment",
+    ["x" * 29, "\u0142" * 29, "\u4e2d" * 29, "\U0001f680" * 14 + "x", "\ud83d" * 29],
+)
+def test_comment_within_package_limit_is_kept(comment: str) -> None:
+    assert validate_comment(comment) == Ok(comment)
+
+
+def test_missing_comment_is_empty() -> None:
     assert validate_comment(None) == Ok("")
-    assert validate_comment("x" * 31) == Ok("x" * 31)
 
 
-def test_comment_over_terminal_limit_is_rejected_not_truncated() -> None:
-    result = validate_comment("x" * 32)
+@pytest.mark.parametrize(
+    "comment",
+    ["x" * 30, "\u0142" * 30, "\U0001f680" * 15, "\U0001f680" + "x" * 28],
+)
+def test_comment_over_package_limit_is_rejected_not_truncated(comment: str) -> None:
+    result = validate_comment(comment)
+    assert isinstance(result, Err)
+    assert result.error.kind is ErrorKind.INVALID_ARGUMENT
+    assert "at most 29" in result.error.message
+
+
+@pytest.mark.parametrize("comment", [12345, 0, False, b"bytes"])
+def test_non_text_comment_is_rejected_not_blanked(comment: object) -> None:
+    result = validate_comment(comment)
     assert isinstance(result, Err)
     assert result.error.kind is ErrorKind.INVALID_ARGUMENT

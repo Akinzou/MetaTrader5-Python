@@ -28,7 +28,7 @@ upgrading a bot that trades real money.
 | 2.x | 3.0 | Why |
 |---|---|---|
 | `OpenPosition`, `Buy*`, `Sell*`, `BuyLimit`, `SellLimit` retried **forever** on any unknown retcode (no money, invalid volume, market closed over the weekend), sending an order every 0.5 s | Requotes are retried at most 3 times. Any other broker refusal returns at once: the receipt is returned and the error is logged | A weekend webhook blocked the bot until Monday; a rejected order was re-sent indefinitely |
-| Invalid input was sent anyway and then retried forever | Refused **before sending**: the call returns `None`, not a receipt, and logs why. This covers a volume off the lot step or outside min/max, an unknown symbol, a comment over 31 characters, and the cases below. Check for `None` before reading `.retcode` | Nothing was sent, so there is no broker answer to return |
+| Invalid input was sent anyway and then retried forever | Refused **before sending**: the call returns `None`, not a receipt, and logs why. This covers a volume off the lot step or outside min/max, an unknown symbol, a comment over 29 UTF-16 units (most emoji count as 2), and the cases below. Check for `None` before reading `.retcode` | Nothing was sent, so there is no broker answer to return |
 | `sl=0` / `tp=0` sent 0.0, which MT5 reads as "no stop" | Refused (returns `None`). Pass `None`, or leave the argument out, for no stop | A missing SL field in a webhook opened an unprotected position without any error |
 | An unknown `sl_type` / `tp_type` (e.g. `"bogus"`) opened the position with **neither SL nor TP** | Opens nothing, returns `None` and logs the error | The stop the caller asked for was silently dropped |
 | `volume=True` was traded as 1 lot; NaN or infinite numbers crashed deep inside | Refused (returns `None`). Numeric strings (`"0.1"`) are still converted as in 2.x | A stray bool must not become one lot |
@@ -37,7 +37,7 @@ upgrading a bot that trades real money.
 | A partial or only-queued (PLACED) market entry counted as opened | Logged as an error; the receipt is still returned, so check `receipt.retcode` (10009 = done) | The bot believed it held the full size |
 | Retcode 10008 (`PLACED`) for limit orders was treated as failure and re-sent | Treated as success | Limit orders could be placed more than once |
 | `ticket=` on `OpenPosition`/`Buy`/`Sell`/`BuyLimit`/`SellLimit` was forwarded as `position` | Refused: returns `None`, logs an error | On hedging accounts it turned an entry into a close of that position |
-| Comments longer than 31 characters made `order_send` fail with `None` | Rejected before sending, logged | Explicit error instead of a crash downstream |
+| Comments the `MetaTrader5` package refuses (30+ UTF-16 units on 5.0.6231; its docs say 31) made `order_send` fail with `None` | Rejected before sending, logged | Explicit error instead of a crash downstream |
 | Prices rounded to `digits` | Prices snapped to the symbol's tick size | Symbols with tick 0.25 were rejected |
 | Fixed filling: FOK for market entries, IOC for closes and limit orders | Filling chosen from the symbol's allowed modes (FOK > IOC > RETURN); limit orders on exchange-execution symbols use RETURN | Brokers without FOK rejected every order (10030); IOC cancelled exchange limits unless instantly fillable |
 

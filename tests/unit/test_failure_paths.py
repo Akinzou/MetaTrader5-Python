@@ -44,7 +44,7 @@ def test_close_rejects_overlong_comment_before_touching_positions(
     trader: Trader, terminal: FakeTerminal
 ) -> None:
     terminal.open_positions = [btc_position()]
-    result = trader.close_positions(comment="c" * 32)
+    result = trader.close_positions(comment="c" * 30)
     assert isinstance(result, Err)
     assert result.error.errors[0].kind is ErrorKind.INVALID_ARGUMENT
     assert terminal.sent == []

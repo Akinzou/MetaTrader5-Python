@@ -112,8 +112,10 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
 - Amounts may be `int`, `float`, `Decimal` or numpy scalars; `bool` and strings
   are refused (the deprecated `Broker` still converts numeric strings).
 - `price` (market orders): send at this price once instead of the live quote.
-- `comment`: at most 31 characters (the terminal's limit). Longer comments are
-  rejected, not truncated.
+- `comment`: at most 29 UTF-16 units: 29 characters, but characters outside
+  the BMP, such as most emoji, count as 2 (combined emoji more). The `MetaTrader5` package refuses 30 or more (measured on 5.0.6231; its
+  docs say 31). Longer comments, and comments that are not `str`, are rejected
+  before sending, not truncated.
 - **`close_positions()` and `cancel_pending_orders()` without arguments act on
   the whole account**, including manual trades. A bot should always pass its
   `magic` (and a symbol); an empty string `""` is rejected.

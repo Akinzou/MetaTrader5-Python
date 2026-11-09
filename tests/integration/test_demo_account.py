@@ -18,6 +18,7 @@ from collections.abc import Iterator
 import pytest
 
 from PythonMetaTrader5 import Err, ErrorKind, Ok, PendingKind, Side, Stop, Trader, connect
+from PythonMetaTrader5.domain.orders import MAX_COMMENT_LENGTH
 
 pytestmark = pytest.mark.integration
 # Windows-only package: the whole module is skipped where it cannot be installed.
@@ -63,7 +64,8 @@ def test_open_and_close_a_market_position(trader: Trader) -> None:
         minimum_volume(),
         sl=Stop.points(2000),
         tp=Stop.points(2000),
-        comment="pmt5 integration",
+        # The longest comment we let through must be accepted for real.
+        comment="pmt5 integration".ljust(MAX_COMMENT_LENGTH, "."),
     )
     if isinstance(opened, Err) and opened.error.kind is ErrorKind.MARKET_CLOSED:
         pytest.skip("market closed")
@@ -94,6 +96,41 @@ def test_place_and_cancel_a_limit_order_far_from_the_market(trader: Trader) -> N
 
 
 def test_oversized_comment_is_rejected_locally(trader: Trader) -> None:
-    result = trader.open_position(SYMBOL, Side.BUY, minimum_volume(), comment="x" * 32)
+    result = trader.open_position(SYMBOL, Side.BUY, minimum_volume(), comment="x" * 30)
     assert isinstance(result, Err)
     assert result.error.kind is ErrorKind.INVALID_ARGUMENT
+
+
+@pytest.mark.parametrize(
+    ("comment", "accepted"),
+    [
+        ("x" * MAX_COMMENT_LENGTH, True),
+        ("x" * (MAX_COMMENT_LENGTH + 1), False),
+        # 15 characters but 30 UTF-16 units: tells unit counting from len().
+        ("\U0001f680" * 14 + "x", True),
+        ("\U0001f680" * 15, False),
+    ],
+)
+def test_comment_limit_matches_the_installed_package(
+    trader: Trader, comment: str, accepted: bool
+) -> None:
+    # order_check validates without sending. MAX_COMMENT_LENGTH is a measurement
+    # of one package build, so a package that moves the boundary fails here.
+    tick = mt5.symbol_info_tick(SYMBOL)
+    request = {
+        "action": mt5.TRADE_ACTION_DEAL,
+        "symbol": SYMBOL,
+        "volume": minimum_volume(),
+        "type": mt5.ORDER_TYPE_BUY,
+        "price": tick.ask,
+        "comment": comment,
+    }
+    checked = mt5.order_check(request)
+    code, message = mt5.last_error()
+    if accepted:
+        assert checked is not None, (code, message)
+    else:
+        # Refused for the comment, not for a dropped link or a closed market.
+        assert checked is None
+        assert code == mt5.RES_E_INVALID_PARAMS, (code, message)
+        assert "comment" in message, message
