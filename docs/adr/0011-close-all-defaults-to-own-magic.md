@@ -30,8 +30,8 @@ gives trades opened by hand magic 0.
   `True`, `1.5`, `-1`, `2**64`). `"42"` would match
   nothing and report an empty success with every position still open.
 - **The trader's own magic must be an integer from 0 to 2\*\*64-1** (MT5's
-  ulong). `connect()` returns `Err(INVALID_ARGUMENT)` and `Trader(...)` raises `ValueError` for
-  `None`, `ANY_MAGIC`, `"1001"` or `True`. Without this check,
+  ulong). `connect()` returns `Err(INVALID_ARGUMENT)` and `Trader(...)`
+  raises `ValueError` for `None`, `ANY_MAGIC`, `"1001"` or `True`. Without this check,
   `connect(magic=cfg.get("magic"))` with the key missing made "own" mean
   "every magic" (found in review).
 - **`Broker` keeps 2.x.** `Close(symbol)` and `CancelOrders(symbol)` closed
@@ -41,12 +41,13 @@ gives trades opened by hand magic 0.
 
 - A trader connected with the default `magic=0` shares that magic with manual
   trades, so its close-all still closes them. The protection only works once
-  a bot sets its own `magic`. `connect()` keeps `magic=0` as its default
-  rather than making `magic` required; that is an API choice left to the
-  owner before release (`Broker` builds its `Trader` directly and is not
-  affected either way). A defaulted close/cancel on a magic-0 trader that
-  matches something logs a warning that manual trades are included; passing
-  `magic=0` explicitly acknowledges it.
+  a bot sets its own `magic`. Making `magic` required in `connect()` was
+  offered before release; the owner chose to keep `magic=0` as the default
+  (2026-11-09). Residual risk: a bot that never sets `magic` still closes
+  manual positions and cancels manual pending orders. A defaulted
+  close/cancel on a magic-0 trader that matches something logs a warning
+  that manual trades are included; an explicit `magic=0` acknowledges it and
+  logs nothing.
 - On a **netting** account one position per symbol collects every deal, and
   it keeps the magic of the deal that opened it. A bot's deal that merges
   into a manual position is then not "own", and a manual deal that merges
