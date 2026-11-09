@@ -67,14 +67,14 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "N", "S", "PL", "C4", "PT", "RET"]
-ignore = ["PLR0913"]
+# N999: the import name `PythonMetaTrader5` predates this rewrite; renaming it to
+# snake_case would break every existing `from PythonMetaTrader5 import Broker`.
+ignore = ["PLR0913", "N999"]
 
 [tool.ruff.lint.per-file-ignores]
-# The distribution/import name predates this rewrite; renaming it breaks every user.
-"src/PythonMetaTrader5/__init__.py" = ["N999"]
 # The 2.x public method names (Buy, GetPositions, ToEffect...) are the compatibility contract.
-"src/PythonMetaTrader5/legacy/*.py" = ["N802", "N803", "N999"]
-"tests/**/*.py" = ["S101", "PLR2004", "N999"]
+"src/PythonMetaTrader5/legacy/*.py" = ["N802", "N803", "N815"]
+"tests/**/*.py" = ["S101", "PLR2004"]
 
 [tool.mypy]
 strict = true
