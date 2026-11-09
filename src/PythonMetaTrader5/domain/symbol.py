@@ -43,20 +43,16 @@ class SymbolSpec:
     # market execution and send limits that cancel instead of resting.
     exchange_execution: bool
 
-    # Broken terminal data (a point of 0 or inf, a volume step of 0) is checked
-    # where each field is used, not refused for the whole spec: closing a
-    # position needs only filling_flags, and a symbol with odd data must still be
-    # closable. A constructor invariant was tried and dropped for that reason.
+    # Broken terminal data (a point of 0 or inf, a NaN tick size, a volume step
+    # of 0) is reported as TERMINAL_ERROR: it is the broker's fault, and a bot
+    # must not file it as a bad signal. It is checked on use rather than refused
+    # for the whole spec, because closing a position needs only filling_flags
+    # and must keep working on such a symbol (a constructor invariant was tried
+    # and dropped for exactly that). Entries call check_tradable() first.
 
-    @property
-    def _step(self) -> float:
-        # A price must sit on the tick grid, not merely have `digits` decimals:
-        # index CFDs often have tick 0.25 with 2 digits and reject 5780.13.
-        # A tick size of 0 means the terminal did not report one; point is used.
-        return self.tick_size if self.tick_size > 0 else self.point
-
-    def normalize_price(self, price: float) -> float:
-        return round(round(price / self._step) * self._step, self.digits)
+    def check_tradable(self) -> Result[None, TradeError]:
+        problem = self._pricing_problem() or self._volume_problem()
+        return Ok(None) if problem is None else Err(self._data_error(problem))
 
     def price_on_grid(self, price: float, kind: ErrorKind, what: str) -> Result[float, TradeError]:
         """``price`` on the tick grid, refused if it is not a usable positive level.
@@ -67,27 +63,30 @@ class SymbolSpec:
         1e-5 overflows to inf (round(inf) raises), and 1e-6 snaps to 0.0, which
         MT5 reads as "no stop" or "fill at the market".
         """
-        if not _usable(self._step):
-            return Err(TradeError(kind, f"{self.name} reports no usable tick size or point"))
-        if not math.isfinite(price / self._step):
+        problem = self._pricing_problem()
+        if problem is not None:
+            return Err(self._data_error(problem))
+        # A price must sit on the tick grid, not merely have `digits` decimals:
+        # index CFDs often have tick 0.25 with 2 digits and reject 5780.13.
+        step = self._step
+        if not math.isfinite(price / step):
             return Err(TradeError(kind, f"{what} {price} is out of range for {self.name}"))
-        level = self.normalize_price(price)
+        level = round(round(price / step) * step, self.digits)
         if level <= 0:
             return Err(TradeError(kind, f"{what} {price} snaps to {level} on {self.name}"))
         return Ok(level)
 
     def points_to_price(self, points: float) -> Result[float, TradeError]:
-        # point 0 would put a points stop on the entry price, point inf at NaN.
+        # Only points stops need `point`: a symbol with a valid tick size and a
+        # point of 0 still trades absolute prices.
         if not _usable(self.point):
-            message = f"{self.name} reports point {self.point!r}; points stops need a positive one"
-            return Err(TradeError(ErrorKind.INVALID_STOPS, message))
+            return Err(self._data_error(f"point {self.point!r} cannot measure a points stop"))
         return Ok(points * self.point)
 
     def validate_volume(self, volume: float) -> Result[float, TradeError]:
-        limits = (self.volume_min, self.volume_max, self.volume_step)
-        if not all(_usable(x) for x in limits) or self.volume_max < self.volume_min:
-            # Guessing a step or limit could send a volume the broker never allowed.
-            return Err(self._volume_error(volume, "not checkable against"))
+        problem = self._volume_problem()
+        if problem is not None:
+            return Err(self._data_error(problem))
         if volume < self.volume_min - _EPSILON or volume > self.volume_max + _EPSILON:
             return Err(self._volume_error(volume, "outside"))
         steps = (volume - self.volume_min) / self.volume_step
@@ -95,6 +94,33 @@ class SymbolSpec:
             return Err(self._volume_error(volume, "not a multiple of the step within"))
         snapped = self.volume_min + round(steps) * self.volume_step
         return Ok(round(snapped, _VOLUME_DECIMALS))
+
+    @property
+    def _step(self) -> float:
+        # A tick size of 0 means the terminal did not report one; point is used.
+        return self.tick_size if self.tick_size > 0 else self.point
+
+    def _pricing_problem(self) -> str | None:
+        # Checked before _step is used: a NaN or negative tick size would
+        # otherwise fall back to point without anyone noticing.
+        if not (self.tick_size == 0 or _usable(self.tick_size)):
+            return f"tick size {self.tick_size!r} is neither 0 nor positive and finite"
+        if not _usable(self._step):
+            return f"no usable tick size or point (point {self.point!r})"
+        if self.digits < 0:
+            return f"digits {self.digits} is negative"
+        return None
+
+    def _volume_problem(self) -> str | None:
+        limits = (self.volume_min, self.volume_max, self.volume_step)
+        if not all(_usable(x) for x in limits):
+            return f"volume min/max/step {limits} are not all positive and finite"
+        if self.volume_max < self.volume_min:
+            return f"volume_max {self.volume_max} is below volume_min {self.volume_min}"
+        return None
+
+    def _data_error(self, problem: str) -> TradeError:
+        return TradeError(ErrorKind.TERMINAL_ERROR, f"{self.name}: broken symbol data: {problem}")
 
     def market_filling(self) -> Filling:
         # FOK first: a webhook bot asking for 1 lot must get 1 lot or nothing.
@@ -121,9 +147,4 @@ class SymbolSpec:
 
 
 def _usable(value: float) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-        and value > 0
-    )
+    return math.isfinite(value) and value > 0

@@ -67,9 +67,12 @@ well.
   constructors raise `ValueError` on any invalid value.
 - Broken data from the terminal is the same problem on the other side. A
   point of 0 put a points stop on the entry price, and a point or tick size
-  of inf priced orders at NaN. Each field is checked where it is used:
-  `price_on_grid` checks the step, `points_to_price` the point,
-  `validate_volume` the volume limits, and the adapter refuses NaN and
-  infinite quotes as `NO_PRICE`. We rejected an invariant on the whole
-  `SymbolSpec`. It made a position on such a symbol impossible to close,
-  although closing needs only the filling flags.
+  of inf priced orders at NaN. These are the broker's fault, so they come
+  back as `TERMINAL_ERROR`, not as `INVALID_*`, which would blame the
+  caller. Every entry calls `SymbolSpec.check_tradable()` (tick size, step,
+  digits, volume limits), including market orders without stops.
+  `points_to_price` also checks `point`, which only points stops need. The
+  adapter refuses NaN and infinite quotes as `NO_PRICE`. Closing never runs
+  these checks. We rejected an invariant on the whole `SymbolSpec`: it made a
+  position on such a symbol impossible to close, although closing needs only
+  the filling flags.

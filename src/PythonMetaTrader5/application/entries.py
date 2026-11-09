@@ -109,6 +109,11 @@ def _quote_free_levels(
     # Absolute stops do not depend on the quote, so they are checked here, before
     # the first tick request: otherwise a stop that can never be valid would sit
     # through the NO_PRICE retries of a symbol without quotes first.
+    # Broken pricing data refuses every entry, market orders without stops too:
+    # those never reach price_on_grid.
+    tradable = spec.check_tradable()
+    if isinstance(tradable, Err):
+        return tradable
     # The price first, so a bad price is still reported before a bad stop.
     level = None if price is None else spec.price_on_grid(price, ErrorKind.INVALID_PRICE, "price")
     if isinstance(level, Err):

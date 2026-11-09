@@ -21,18 +21,22 @@ def eurusd(**overrides: object) -> SymbolSpec:
     return SymbolSpec(**fields)  # type: ignore[arg-type]
 
 
-def test_normalize_price_rounds_to_tick_without_float_noise() -> None:
-    assert eurusd().normalize_price(1.123456) == 1.12346
-    assert eurusd().normalize_price(1.1) == 1.1
+def on_grid(spec: SymbolSpec, price: float) -> object:
+    return spec.price_on_grid(price, ErrorKind.INVALID_PRICE, "price")
 
 
-def test_normalize_price_uses_tick_size_coarser_than_point() -> None:
+def test_prices_snap_to_the_tick_without_float_noise() -> None:
+    assert on_grid(eurusd(), 1.123456) == Ok(1.12346)
+    assert on_grid(eurusd(), 1.1) == Ok(1.1)
+
+
+def test_prices_use_a_tick_size_coarser_than_point() -> None:
     index = eurusd(name="US500", digits=2, point=0.01, tick_size=0.25)
-    assert index.normalize_price(5780.13) == 5780.25
+    assert on_grid(index, 5780.13) == Ok(5780.25)
 
 
-def test_normalize_price_falls_back_to_point_when_tick_size_missing() -> None:
-    assert eurusd(tick_size=0.0).normalize_price(1.123456) == 1.12346
+def test_prices_fall_back_to_point_when_tick_size_missing() -> None:
+    assert on_grid(eurusd(tick_size=0.0), 1.123456) == Ok(1.12346)
 
 
 @pytest.mark.parametrize("volume", [0.01, 0.1, 0.37, 100.0])
@@ -59,3 +63,9 @@ def test_invalid_volume_is_rejected(volume: float) -> None:
 )
 def test_market_filling_prefers_fill_or_kill(flags: int, expected: Filling) -> None:
     assert eurusd(filling_flags=flags).market_filling() is expected
+
+
+def test_pricing_on_broken_data_is_a_terminal_error_even_when_called_directly() -> None:
+    result = on_grid(eurusd(point=0.0, tick_size=0.0), 1.1)
+    assert isinstance(result, Err)
+    assert result.error.kind is ErrorKind.TERMINAL_ERROR
