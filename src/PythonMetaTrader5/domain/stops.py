@@ -64,7 +64,10 @@ class Stop:
         # level below zero (a long points distance) or off the grid is refused.
         level = self.value
         if self.kind is StopKind.POINTS:
-            level = reference + direction * self.value * spec.point
+            distance = spec.points_to_price(self.value)
+            if isinstance(distance, Err):
+                return distance
+            level = reference + direction * distance.value
         return spec.price_on_grid(level, ErrorKind.INVALID_STOPS, what)
 
 

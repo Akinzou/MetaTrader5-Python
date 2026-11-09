@@ -65,10 +65,11 @@ well.
   put on the grid, and it refuses those as well as levels that snap to 0.
   Quote prices come from the terminal already on the grid. The `Stop`
   constructors raise `ValueError` on any invalid value.
-- Broken symbol data from the terminal is the same problem on the other
-  side. A point of 0 put a points stop on the entry price, and a point of
-  inf priced orders at NaN. `SymbolSpec` therefore has an invariant: point,
-  volume step and volume min must be positive and finite, the tick size must
-  be 0 or positive and finite, and volume max must not be below volume min.
-  The adapter turns a violation into `Err(TERMINAL_ERROR)` through
-  `SymbolSpec.check`.
+- Broken data from the terminal is the same problem on the other side. A
+  point of 0 put a points stop on the entry price, and a point or tick size
+  of inf priced orders at NaN. Each field is checked where it is used:
+  `price_on_grid` checks the step, `points_to_price` the point,
+  `validate_volume` the volume limits, and the adapter refuses NaN and
+  infinite quotes as `NO_PRICE`. We rejected an invariant on the whole
+  `SymbolSpec`. It made a position on such a symbol impossible to close,
+  although closing needs only the filling flags.

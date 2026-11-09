@@ -43,21 +43,10 @@ class SymbolSpec:
     # market execution and send limits that cancel instead of resting.
     exchange_execution: bool
 
-    def __post_init__(self) -> None:
-        # The invariant lives here so pricing code never meets a zero, NaN or
-        # infinite step: point 0 put a points stop on the entry price, point inf
-        # priced orders at NaN. Raised, not returned: such a spec cannot exist;
-        # the adapter turns terminal data into a Result through SymbolSpec.check.
-        problem = _problem(self)
-        if problem is not None:
-            raise ValueError(f"{self.name}: {problem}")
-
-    @staticmethod
-    def check(spec_fields: dict[str, object]) -> Result[SymbolSpec, TradeError]:
-        try:
-            return Ok(SymbolSpec(**spec_fields))  # type: ignore[arg-type]
-        except ValueError as error:
-            return Err(TradeError(ErrorKind.TERMINAL_ERROR, f"broken symbol data: {error}"))
+    # Broken terminal data (a point of 0 or inf, a volume step of 0) is checked
+    # where each field is used, not refused for the whole spec: closing a
+    # position needs only filling_flags, and a symbol with odd data must still be
+    # closable. A constructor invariant was tried and dropped for that reason.
 
     @property
     def _step(self) -> float:
@@ -78,6 +67,8 @@ class SymbolSpec:
         1e-5 overflows to inf (round(inf) raises), and 1e-6 snaps to 0.0, which
         MT5 reads as "no stop" or "fill at the market".
         """
+        if not _usable(self._step):
+            return Err(TradeError(kind, f"{self.name} reports no usable tick size or point"))
         if not math.isfinite(price / self._step):
             return Err(TradeError(kind, f"{what} {price} is out of range for {self.name}"))
         level = self.normalize_price(price)
@@ -85,7 +76,18 @@ class SymbolSpec:
             return Err(TradeError(kind, f"{what} {price} snaps to {level} on {self.name}"))
         return Ok(level)
 
+    def points_to_price(self, points: float) -> Result[float, TradeError]:
+        # point 0 would put a points stop on the entry price, point inf at NaN.
+        if not _usable(self.point):
+            message = f"{self.name} reports point {self.point!r}; points stops need a positive one"
+            return Err(TradeError(ErrorKind.INVALID_STOPS, message))
+        return Ok(points * self.point)
+
     def validate_volume(self, volume: float) -> Result[float, TradeError]:
+        limits = (self.volume_min, self.volume_max, self.volume_step)
+        if not all(_usable(x) for x in limits) or self.volume_max < self.volume_min:
+            # Guessing a step or limit could send a volume the broker never allowed.
+            return Err(self._volume_error(volume, "not checkable against"))
         if volume < self.volume_min - _EPSILON or volume > self.volume_max + _EPSILON:
             return Err(self._volume_error(volume, "outside"))
         steps = (volume - self.volume_min) / self.volume_step
@@ -118,19 +120,10 @@ class SymbolSpec:
         )
 
 
-def _problem(spec: SymbolSpec) -> str | None:
-    def usable(value: float) -> bool:
-        return isinstance(value, (int, float)) and math.isfinite(value) and value > 0
-
-    if not usable(spec.point):
-        return f"point {spec.point!r} is not a positive finite number"
-    if not (usable(spec.tick_size) or spec.tick_size == 0):
-        return f"tick size {spec.tick_size!r} is neither 0 nor a positive finite number"
-    for name, value in (("volume_step", spec.volume_step), ("volume_min", spec.volume_min)):
-        if not usable(value):
-            return f"{name} {value!r} is not a positive finite number"
-    if not (usable(spec.volume_max) and spec.volume_max >= spec.volume_min):
-        return f"volume_max {spec.volume_max!r} is below volume_min {spec.volume_min!r}"
-    if spec.digits < 0:
-        return f"digits {spec.digits!r} is negative"
-    return None
+def _usable(value: float) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0
+    )

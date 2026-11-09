@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import functools
 import importlib
+import math
 import threading
 from collections.abc import Callable
 from typing import Any, ParamSpec, TypeVar
@@ -137,25 +138,26 @@ class MetaTrader5Terminal:
                     f"{name!r} cannot be added to Market Watch: {self._last_error()}",
                 )
             )
-        return SymbolSpec.check(
-            {
-                "name": info.name,
-                "digits": int(info.digits),
-                "point": float(info.point),
-                "tick_size": float(info.trade_tick_size),
-                "volume_min": float(info.volume_min),
-                "volume_max": float(info.volume_max),
-                "volume_step": float(info.volume_step),
-                "filling_flags": int(info.filling_mode),
-                "exchange_execution": int(info.trade_exemode) == self._exchange_execution,
-            }
+        return Ok(
+            SymbolSpec(
+                name=info.name,
+                digits=int(info.digits),
+                point=float(info.point),
+                tick_size=float(info.trade_tick_size),
+                volume_min=float(info.volume_min),
+                volume_max=float(info.volume_max),
+                volume_step=float(info.volume_step),
+                filling_flags=int(info.filling_mode),
+                exchange_execution=int(info.trade_exemode) == self._exchange_execution,
+            )
         )
 
     @_serialized
     def tick(self, name: str) -> Result[Tick, TradeError]:
         tick = self._mt5.symbol_info_tick(name)
         # A zero side means no quote yet; trading at price 0 must never be attempted.
-        if tick is None or tick.bid <= 0 or tick.ask <= 0:
+        # NaN and inf are refused too: `nan <= 0` is False and would send price NaN.
+        if tick is None or not all(math.isfinite(p) and p > 0 for p in (tick.bid, tick.ask)):
             return Err(TradeError(ErrorKind.NO_PRICE, f"no quote for {name!r}"))
         return Ok(Tick(bid=float(tick.bid), ask=float(tick.ask)))
 
