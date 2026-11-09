@@ -1,39 +1,83 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+# setuptools>=77 is the first release that accepts a PEP 639 SPDX `license` string;
+# older versions would silently publish the wrong license metadata again.
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "PythonMetaTrader5"
-version = "2.3.2"
-description = "Connect MT5 with Python"
+version = "3.0.0"
+description = "Safe, typed trading layer over the official MetaTrader5 Python API"
 readme = "README.md"
-requires-python = ">=3.6"
-license = {text = "CC BY-NC 4.0"}
-
+requires-python = ">=3.10"
+license = "CC-BY-NC-4.0"
+license-files = ["LICENSE"]
 authors = [{ name = "Wiktor Jelen", email = "wiktorjn@gmail.com" }]
-
+keywords = ["metatrader5", "mt5", "trading", "forex", "algotrading"]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent"
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
 ]
+# The official MetaTrader5 package ships Windows wheels only. The marker keeps the
+# package installable on Linux/macOS (CI, type checking, unit tests against fakes)
+# instead of failing the whole install.
+dependencies = ["MetaTrader5; sys_platform == 'win32'"]
 
-dependencies = [
-    "MetaTrader5",
-    "loguru",
-    "pyautogui"
-]
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.10", "build>=1.2", "twine>=5"]
 
 [project.urls]
 Homepage = "https://github.com/Akinzou/MetaTrader5-Python"
 "Bug Tracker" = "https://github.com/Akinzou/MetaTrader5-Python/issues"
+Changelog = "https://github.com/Akinzou/MetaTrader5-Python/blob/master/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+PythonMetaTrader5 = ["py.typed"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = ["integration: needs a running MetaTrader 5 terminal and MT5_* credentials"]
 
+[tool.coverage.run]
+source = ["PythonMetaTrader5"]
+branch = true
 
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+exclude_also = ["if TYPE_CHECKING:", "raise AssertionError"]
 
+[tool.ruff]
+line-length = 100
+target-version = "py310"
 
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "N", "S", "PL", "C4", "PT", "RET"]
+ignore = ["PLR0913"]
 
+[tool.ruff.lint.per-file-ignores]
+# The distribution/import name predates this rewrite; renaming it breaks every user.
+"src/PythonMetaTrader5/__init__.py" = ["N999"]
+# The 2.x public method names (Buy, GetPositions, ToEffect...) are the compatibility contract.
+"src/PythonMetaTrader5/legacy/*.py" = ["N802", "N803", "N999"]
+"tests/**/*.py" = ["S101", "PLR2004", "N999"]
+
+[tool.mypy]
+strict = true
+python_version = "3.10"
+mypy_path = "src"
+packages = ["PythonMetaTrader5"]
