@@ -17,7 +17,7 @@ def test_limit_order_is_placed_at_its_level(trader: Trader, terminal: FakeTermin
     (request,) = terminal.sent
     assert isinstance(request, OrderRequest)
     assert (request.pending, request.price, request.sl) == (PendingKind.LIMIT, 1.095, 1.0945)
-    assert request.filling is Filling.RETURN
+    assert request.filling is Filling.FOK
 
 
 def test_limit_order_rejected_by_server_is_an_error(trader: Trader, terminal: FakeTerminal) -> None:

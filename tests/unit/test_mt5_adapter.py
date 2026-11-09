@@ -60,7 +60,7 @@ def test_symbol_is_mapped_and_hidden_symbols_are_selected(
     mt5.symbols["EURUSD"] = symbol_info(visible=False)
     result = adapter.symbol("EURUSD")
     assert isinstance(result, Ok)
-    assert (result.value.digits, result.value.tick_size, result.value.stops_level) == (5, 1e-5, 10)
+    assert (result.value.digits, result.value.tick_size) == (5, 1e-5)
     assert ("symbol_select", ("EURUSD", True), {}) in mt5.calls
     missing = adapter.symbol("NOPE")
     assert isinstance(missing, Err)

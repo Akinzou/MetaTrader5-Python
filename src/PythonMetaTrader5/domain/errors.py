@@ -21,6 +21,8 @@ class ErrorKind(Enum):
     TRADE_DISABLED = "trade_disabled"
     ALGO_TRADING_DISABLED = "algo_trading_disabled"
     LIMIT_REACHED = "limit_reached"
+    # Only part of the volume was executed; the rest is still open/unfilled.
+    PARTIAL_FILL = "partial_fill"
     # The request may or may not have reached the trade server: never auto-retried.
     OUTCOME_UNKNOWN = "outcome_unknown"
     RETRIES_EXHAUSTED = "retries_exhausted"

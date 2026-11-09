@@ -26,6 +26,11 @@ from PythonMetaTrader5.result import Err, Ok, Result
 # MT5 reports "nothing found" and "call failed" both as None; only last_error()
 # tells them apart. 1 is RES_S_OK.
 _RES_S_OK = 1
+# last_error() codes for which order_send provably never left this process
+# (bad arguments, no IPC link, terminal refused). Any other failure (send,
+# receive, timeout) may have reached the server, so its outcome is unknown.
+_NOT_SENT = frozenset({-2, -3, -4, -5, -6, -7, -10003, -10004})
+_AUTO_TRADING_DISABLED = -8
 
 
 class MetaTrader5Terminal:
@@ -81,9 +86,14 @@ class MetaTrader5Terminal:
         info = self._mt5.symbol_info(name)
         if info is None:
             return Err(TradeError(ErrorKind.SYMBOL_NOT_FOUND, f"unknown symbol {name!r}"))
-        if not info.visible:
-            # Hidden symbols have no quotes; 2.x left users to fix Market Watch by hand.
-            self._mt5.symbol_select(name, True)
+        # Hidden symbols have no quotes; 2.x left users to fix Market Watch by hand.
+        if not info.visible and not self._mt5.symbol_select(name, True):
+            return Err(
+                TradeError(
+                    ErrorKind.SYMBOL_NOT_FOUND,
+                    f"{name!r} cannot be added to Market Watch: {self._last_error()}",
+                )
+            )
         return Ok(
             SymbolSpec(
                 name=info.name,
@@ -94,7 +104,6 @@ class MetaTrader5Terminal:
                 volume_max=float(info.volume_max),
                 volume_step=float(info.volume_step),
                 filling_flags=int(info.filling_mode),
-                stops_level=int(info.trade_stops_level),
             )
         )
 
@@ -110,7 +119,7 @@ class MetaTrader5Terminal:
         result = self._mt5.order_send(payload)
         if result is None:
             return Err(
-                TradeError(ErrorKind.TERMINAL_ERROR, f"order_send failed: {self._last_error()}")
+                TradeError(self._send_failure_kind(), f"order_send failed: {self._last_error()}")
             )
         return Ok(
             TradeReceipt(
@@ -129,7 +138,11 @@ class MetaTrader5Terminal:
     def positions(
         self, *, symbol: str | None = None, ticket: int | None = None
     ) -> Result[list[Position], TradeError]:
-        query = {"ticket": ticket} if ticket is not None else {"symbol": symbol} if symbol else {}
+        query: dict[str, object] = {}
+        if ticket is not None:
+            query["ticket"] = ticket
+        elif symbol is not None:
+            query["symbol"] = symbol
         raw = self._listing(self._mt5.positions_get(**query), "positions_get")
         if isinstance(raw, Err):
             return raw
@@ -138,7 +151,7 @@ class MetaTrader5Terminal:
     def pending_orders(
         self, *, symbol: str | None = None
     ) -> Result[list[PendingOrder], TradeError]:
-        query = {"symbol": symbol} if symbol else {}
+        query = {"symbol": symbol} if symbol is not None else {}
         raw = self._listing(self._mt5.orders_get(**query), "orders_get")
         if isinstance(raw, Err):
             return raw
@@ -211,6 +224,12 @@ class MetaTrader5Terminal:
         if code == _RES_S_OK:
             return Ok(())
         return Err(TradeError(ErrorKind.TERMINAL_ERROR, f"{call} failed: {self._last_error()}"))
+
+    def _send_failure_kind(self) -> ErrorKind:
+        code, _ = self._mt5.last_error()
+        if code == _AUTO_TRADING_DISABLED:
+            return ErrorKind.ALGO_TRADING_DISABLED
+        return ErrorKind.TERMINAL_ERROR if code in _NOT_SENT else ErrorKind.OUTCOME_UNKNOWN
 
     def _last_error(self) -> str:
         code, message = self._mt5.last_error()

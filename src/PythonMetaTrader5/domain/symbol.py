@@ -38,7 +38,6 @@ class SymbolSpec:
     volume_max: float
     volume_step: float
     filling_flags: int
-    stops_level: int = 0
 
     def normalize_price(self, price: float) -> float:
         # A price must sit on the tick grid, not merely have `digits` decimals:

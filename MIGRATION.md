@@ -17,6 +17,8 @@ upgrading a bot that trades real money.
 | On retcode 10027 it pressed **Ctrl+E** via `pyautogui` | Logs "enable Algo Trading" and returns the receipt | Ctrl+E *toggles* Algo Trading and is typed into whichever window has focus |
 | `Close()` always returned `False` | `True` if at least one position closed and none failed, else `False` | The return value was meaningless |
 | `Close(symbol=None, ticket=...)` crashed | Each position is closed on its own symbol | It priced the close with the `symbol` argument |
+| `Close(None)` without a ticket crashed without closing anything | Still closes nothing: logs an error, returns `False` | Forwarding `None` would close every position on the account |
+| A partly filled close counted as closed | Reported as a failure (`PARTIAL_FILL`), `Close()` returns `False` | The rest of the position was left open silently |
 | `CancelOrders` could loop forever on a failed cancel | One attempt per order (requotes retried), failures logged | Same as above |
 | Comments longer than 31 characters made `order_send` fail with `None` | Rejected before sending, logged | Explicit error instead of a crash downstream |
 | `ticket=` on `OpenPosition`/`Buy`/`Sell`/`BuyLimit`/`SellLimit` was forwarded as `position` | Refused: returns `None`, logs an error | On hedging accounts it turned an entry into a close of that position |

@@ -61,6 +61,9 @@ class FakeTerminal:
     connect_failure: TradeError | None = None
     sent: list[OrderRequest | CancelRequest] = field(default_factory=list)
     connected_with: list[Credentials] = field(default_factory=list)
+    symbol_lookups: list[str] = field(default_factory=list)
+    # Number of tick() calls answered with NO_PRICE before quotes arrive.
+    missing_quotes: int = 0
     shut_down: bool = False
 
     def quote(self, symbol: str, *ticks: tuple[float, float]) -> None:
@@ -74,12 +77,16 @@ class FakeTerminal:
         self.shut_down = True
 
     def symbol(self, name: str) -> Result[SymbolSpec, TradeError]:
+        self.symbol_lookups.append(name)
         if name not in self.specs:
             return Err(TradeError(ErrorKind.SYMBOL_NOT_FOUND, name))
         return Ok(self.specs[name])
 
     def tick(self, name: str) -> Result[Tick, TradeError]:
         queue = self.ticks.get(name)
+        if self.missing_quotes:
+            self.missing_quotes -= 1
+            return Err(TradeError(ErrorKind.NO_PRICE, name))
         if not queue:
             return Err(TradeError(ErrorKind.NO_PRICE, name))
         # The last quote sticks, earlier ones are consumed one per call.

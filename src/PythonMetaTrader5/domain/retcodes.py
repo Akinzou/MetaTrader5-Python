@@ -19,7 +19,8 @@ class Outcome(Enum):
 
 # PLACED is how the server confirms a pending order; 2.x only accepted DONE and
 # therefore re-sent limit orders that had already been placed.
-_SUCCESS = frozenset({10008, 10009, 10010})
+DONE_PARTIAL = 10010
+_SUCCESS = frozenset({10008, 10009, DONE_PARTIAL})
 
 # Only codes where the server provably did NOT execute the request. TIMEOUT and
 # CONNECTION are deliberately absent: the order may already be live, and an

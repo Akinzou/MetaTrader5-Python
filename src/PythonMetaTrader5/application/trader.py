@@ -8,12 +8,13 @@ from types import TracebackType
 from PythonMetaTrader5.application.batch import BatchFailure, run_batch, with_magic
 from PythonMetaTrader5.application.execution import RetryPolicy, execute
 from PythonMetaTrader5.application.ports import Clock, Terminal
-from PythonMetaTrader5.domain.errors import TradeError
+from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
 from PythonMetaTrader5.domain.market import PendingKind, PendingOrder, Position, TradeReceipt
 from PythonMetaTrader5.domain.orders import Side, validate_comment
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
+from PythonMetaTrader5.domain.retcodes import DONE_PARTIAL
 from PythonMetaTrader5.domain.stops import Stop
-from PythonMetaTrader5.domain.symbol import Filling, SymbolSpec
+from PythonMetaTrader5.domain.symbol import SymbolSpec
 from PythonMetaTrader5.result import Err, Ok, Result
 
 StopInput = Stop | float | None
@@ -77,11 +78,7 @@ class Trader:
                 if isinstance(tick, Err):
                     return tick
                 reference = tick.value.entry_price(e.side)
-            return Ok(
-                self._entry_request(
-                    e, reference, sl=sl, tp=tp, filling=e.spec.market_filling(), pending=None
-                )
-            )
+            return Ok(self._entry_request(e, reference, sl=sl, tp=tp, pending=None))
 
         policy = self._retry if price is None else replace(self._retry, attempts=1)
         return execute(self._terminal, self._clock, build, policy)
@@ -107,11 +104,7 @@ class Trader:
             return entry
         e = entry.value
         level = e.spec.normalize_price(price)
-        # RETURN: a resting order must keep its unfilled remainder; FOK/IOC would
-        # cancel it the moment it is not immediately fillable.
-        request = self._entry_request(
-            e, level, sl=sl, tp=tp, filling=Filling.RETURN, pending=PendingKind.LIMIT
-        )
+        request = self._entry_request(e, level, sl=sl, tp=tp, pending=PendingKind.LIMIT)
         return execute(self._terminal, self._clock, lambda: Ok(request), self._retry)
 
     # ------------------------------------------------------------------- exits
@@ -131,7 +124,15 @@ class Trader:
         listed = self.positions(None if ticket is not None else symbol, ticket=ticket, magic=magic)
         if isinstance(listed, Err):
             return Err(BatchFailure((), (listed.error,)))
-        return run_batch(listed.value, lambda p: self._close_one(p, text.value))
+        # One spec lookup per symbol, not per position: close-all is time-critical.
+        specs: dict[str, Result[SymbolSpec, TradeError]] = {}
+
+        def close(position: Position) -> Result[TradeReceipt, TradeError]:
+            if position.symbol not in specs:
+                specs[position.symbol] = self._terminal.symbol(position.symbol)
+            return self._close_one(position, specs[position.symbol], text.value)
+
+        return run_batch(listed.value, close)
 
     def cancel_pending_orders(
         self,
@@ -150,6 +151,9 @@ class Trader:
     def positions(
         self, symbol: str | None = None, *, ticket: int | None = None, magic: int | None = None
     ) -> Result[list[Position], TradeError]:
+        invalid = _reject_empty(symbol)
+        if invalid is not None:
+            return invalid
         listed = self._terminal.positions(symbol=symbol, ticket=ticket)
         return listed if isinstance(listed, Err) else Ok(with_magic(listed.value, magic))
 
@@ -160,6 +164,9 @@ class Trader:
         magic: int | None = None,
         kind: PendingKind | None = None,
     ) -> Result[list[PendingOrder], TradeError]:
+        invalid = _reject_empty(symbol)
+        if invalid is not None:
+            return invalid
         listed = self._terminal.pending_orders(symbol=symbol)
         if isinstance(listed, Err):
             return listed
@@ -206,7 +213,6 @@ class Trader:
         *,
         sl: StopInput,
         tp: StopInput,
-        filling: Filling,
         pending: PendingKind | None,
     ) -> OrderRequest:
         stop_loss, take_profit = _as_stop(sl), _as_stop(tp)
@@ -215,7 +221,9 @@ class Trader:
             side=e.side,
             volume=e.volume,
             price=reference,
-            filling=filling,
+            # The symbol's own allowed mode for limits too: a fixed RETURN is refused
+            # (10030) by market-execution brokers, where the IOC of 2.x was accepted.
+            filling=e.spec.market_filling(),
             deviation=self._deviation,
             magic=self._magic,
             comment=e.comment,
@@ -224,11 +232,12 @@ class Trader:
             pending=pending,
         )
 
-    def _close_one(self, position: Position, comment: str) -> Result[TradeReceipt, TradeError]:
-        spec = self._terminal.symbol(position.symbol)
+    def _close_one(
+        self, position: Position, spec: Result[SymbolSpec, TradeError], comment: str
+    ) -> Result[TradeReceipt, TradeError]:
         if isinstance(spec, Err):
             return spec
-        side = position.side.opposite
+        filling = spec.value.market_filling()
 
         def build() -> Result[OrderRequest | CancelRequest, TradeError]:
             tick = self._terminal.tick(position.symbol)
@@ -237,10 +246,10 @@ class Trader:
             return Ok(
                 OrderRequest(
                     symbol=position.symbol,
-                    side=side,
+                    side=position.side.opposite,
                     volume=position.volume,
-                    price=tick.value.entry_price(side),
-                    filling=spec.value.market_filling(),
+                    price=tick.value.exit_price(position.side),
+                    filling=filling,
                     deviation=self._deviation,
                     magic=self._magic,
                     comment=comment,
@@ -248,11 +257,29 @@ class Trader:
                 )
             )
 
-        return execute(self._terminal, self._clock, build, self._retry)
+        closed = execute(self._terminal, self._clock, build, self._retry)
+        if isinstance(closed, Ok) and closed.value.retcode == DONE_PARTIAL:
+            return Err(
+                TradeError(
+                    ErrorKind.PARTIAL_FILL,
+                    f"closed {closed.value.volume} of {position.volume} lots",
+                    retcode=DONE_PARTIAL,
+                    receipt=closed.value,
+                )
+            )
+        return closed
 
     def _cancel_one(self, order: PendingOrder) -> Result[TradeReceipt, TradeError]:
         request = CancelRequest(order=order.ticket)
         return execute(self._terminal, self._clock, lambda: Ok(request), self._retry)
+
+
+def _reject_empty(symbol: str | None) -> Err[TradeError] | None:
+    # "" must not reach the terminal: MT5 treats a falsy filter as "all symbols",
+    # so a webhook with a missing field would close the whole account.
+    if symbol == "":
+        return Err(TradeError(ErrorKind.INVALID_ARGUMENT, "symbol must not be empty"))
+    return None
 
 
 def _as_stop(value: StopInput) -> Stop | None:

@@ -29,7 +29,7 @@ def connect(
     """Start (or attach to) the MT5 terminal, log in, and return a ready Trader."""
     try:
         account = int(login)
-    except ValueError:
+    except (TypeError, ValueError, OverflowError):
         return Err(TradeError(ErrorKind.INVALID_ARGUMENT, f"login must be numeric, got {login!r}"))
     loaded = MetaTrader5Terminal.load()
     if isinstance(loaded, Err):
@@ -38,6 +38,9 @@ def connect(
     credentials = Credentials(account, str(password), str(server), path, timeout_ms)
     connected = terminal.connect(credentials)
     if isinstance(connected, Err):
+        # initialize() may have attached to (or launched) the terminal before the
+        # login failed; leaving that IPC session open blocks the next connect().
+        terminal.shutdown()
         return connected
     # Login and server only: account_info() also carries the owner's name and
     # balance, which do not belong in application logs.

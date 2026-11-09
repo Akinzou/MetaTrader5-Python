@@ -35,6 +35,13 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
 - The `from MetaTrader5 import *` re-export.
 - The `Broker.password` attribute.
 
+### Safety
+- An empty symbol (`""`) is rejected instead of meaning "every symbol".
+- `order_send` failures that may have reached the server are reported as
+  `OUTCOME_UNKNOWN`, never as a plain terminal error.
+- A partly filled close is a `PARTIAL_FILL` error.
+- A failed login shuts the terminal session down.
+
 ### Fixed
 - `Close(ticket=...)` with `symbol=None` crashed.
 - `CancelOrders` and `Close` could loop forever.

@@ -9,9 +9,14 @@ rounded prices to `digits`.
 
 ## Decision
 
-Market orders use the first mode the symbol allows, in the order
-FOK > IOC > RETURN. Pending orders use RETURN. Prices snap to
-`trade_tick_size` (falling back to `point`) and are then rounded to `digits`.
+Market and pending orders use the first mode the symbol allows, in the order
+FOK > IOC > RETURN. Prices snap to `trade_tick_size` (falling back to `point`)
+and are then rounded to `digits`.
+
+An earlier draft used a fixed RETURN for pending orders. We dropped it because
+MQL5 documents RETURN as not allowed in Market execution mode, so on those
+brokers every limit order would have been refused with 10030, while the IOC
+that 2.x sent was accepted.
 
 We prefer FOK over IOC because IOC can fill only part of the requested volume
 and still report success, leaving a bot with a position size it never asked

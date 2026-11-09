@@ -19,6 +19,19 @@ never retried. We chose "report it and let the caller check positions" over
 "retry" because a retry after a request that did reach the server opens a
 second position without any error.
 
+The same rule applies when `order_send` itself returns `None`. Only the
+`last_error()` codes that prove the request never left the process (invalid
+arguments, no IPC link, terminal refused) become `TERMINAL_ERROR`. Send,
+receive and IPC-timeout failures become `OUTCOME_UNKNOWN`.
+
+A missing quote while the request is being built (`NO_PRICE`) is retried,
+because nothing has been sent yet. A symbol that was just added to Market Watch
+has no quote for a moment.
+
+A partial fill (`DONE_PARTIAL`) on a close is an error (`PARTIAL_FILL`): the
+rest of the position is still open. On an entry it stays `Ok`, and
+`receipt.volume` gives the filled size.
+
 ## Consequences
 
 - Every call returns within `attempts × (delay + round trip)`.

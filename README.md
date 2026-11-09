@@ -93,9 +93,10 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
 
 | Server answer | What happens |
 |---|---|
-| done, placed, partial fill | `Ok(receipt)` |
+| done, placed, partial fill on an entry | `Ok(receipt)` (`receipt.volume` is the filled size) |
+| partial fill on a close | `PARTIAL_FILL`: the rest of the position is still open |
 | requote, price changed, no quotes, too many requests | retried with a fresh quote, up to `RetryPolicy.attempts` (default 3, 0.5 s apart), then `RETRIES_EXHAUSTED` |
-| timeout, no connection | `OUTCOME_UNKNOWN`, never retried: check `positions()` first |
+| timeout, no connection, or `order_send` lost in IPC | `OUTCOME_UNKNOWN`, never retried: check `positions()` first |
 | anything else | the matching `ErrorKind`, returned at once |
 
 ```python

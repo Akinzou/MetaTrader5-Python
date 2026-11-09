@@ -42,6 +42,11 @@ def execute(
     for attempt in range(1, policy.attempts + 1):
         request = build()
         if isinstance(request, Err):
+            # Nothing was sent, so waiting is safe; a symbol just added to Market
+            # Watch typically has no quote for the first few hundred milliseconds.
+            if request.error.kind is ErrorKind.NO_PRICE and attempt < policy.attempts:
+                clock.sleep(policy.delay_seconds)
+                continue
             return request
         sent = terminal.send(request.value)
         if isinstance(sent, Err):

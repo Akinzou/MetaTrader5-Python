@@ -174,6 +174,10 @@ class Broker:
         trader = self._ready()
         if trader is None:
             return False
+        if symbol is None and ticket is None:
+            # 2.x crashed here without closing anything; 3.x would close the account.
+            log.error("%s: Close needs a symbol or ticket", self.log)
+            return False
         result = trader.close_positions(symbol, ticket=ticket, comment=comment)
         if isinstance(result, Err):
             log.error("%s: closing %s: %s", self.log, symbol, result.error)
