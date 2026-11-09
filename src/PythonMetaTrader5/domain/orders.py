@@ -34,18 +34,31 @@ class Side(Enum):
         return Ok(cls[name])
 
 
-# The terminal stores at most 31 characters and answers longer comments with an
-# "Invalid comment argument" error instead of trimming them.
-MAX_COMMENT_LENGTH = 31
+# Measured with order_check, not taken from the docs: MetaTrader5 5.0.6231
+# accepts 29 UTF-16 code units and refuses 30 with [-2] Invalid "comment"
+# argument before sending. The documented 31 would let 30-31 through to a
+# TERMINAL_ERROR that hides the cause, and trimming would change what the user
+# asked to store. tests/integration re-measures it when the package changes.
+MAX_COMMENT_LENGTH = 29
 
 
-def validate_comment(comment: str | None) -> Result[str, TradeError]:
-    text = comment or ""
-    if len(text) > MAX_COMMENT_LENGTH:
+def validate_comment(comment: object) -> Result[str, TradeError]:
+    if comment is None:
+        return Ok("")
+    # `comment or ""` would store 0 or False as an empty comment without a word.
+    if not isinstance(comment, str):
+        return Err(TradeError(ErrorKind.INVALID_ARGUMENT, f"comment must be text, not {comment!r}"))
+    # The package counts UTF-16 units, not len(): "\U0001f680" * 15 is refused.
+    # surrogatepass: the package accepts a lone surrogate (measured), so it is
+    # one unit here, not a UnicodeEncodeError.
+    units = len(comment.encode("utf-16-le", "surrogatepass")) // 2
+    if units > MAX_COMMENT_LENGTH:
         return Err(
             TradeError(
                 ErrorKind.INVALID_ARGUMENT,
-                f"comment is {len(text)} characters; the terminal accepts {MAX_COMMENT_LENGTH}",
+                f"comment is {units} UTF-16 units (characters outside the BMP, such as "
+                f"most emoji, count as 2; combined emoji more); "
+                f"the MetaTrader5 package accepts at most {MAX_COMMENT_LENGTH}",
             )
         )
-    return Ok(text)
+    return Ok(comment)
