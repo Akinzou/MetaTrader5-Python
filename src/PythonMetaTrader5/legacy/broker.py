@@ -190,6 +190,10 @@ class Broker:
         trader = self._ready()
         if trader is None:
             return
+        if not symbol:
+            # 2.x matched orders against the symbol and so cancelled nothing here.
+            log.error("%s: CancelOrders needs a symbol", self.log)
+            return
         # 2.x only ever cancelled limit orders; stop orders stay untouched.
         result = trader.cancel_pending_orders(symbol, kind=PendingKind.LIMIT)
         if isinstance(result, Err):

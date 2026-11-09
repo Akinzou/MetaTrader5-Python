@@ -38,6 +38,7 @@ class SymbolSpec:
     volume_max: float
     volume_step: float
     filling_flags: int
+    exchange_execution: bool = False
 
     def normalize_price(self, price: float) -> float:
         # A price must sit on the tick grid, not merely have `digits` decimals:
@@ -62,6 +63,13 @@ class SymbolSpec:
         if self.filling_flags & _FILLING_IOC_FLAG:
             return Filling.IOC
         return Filling.RETURN
+
+    def pending_filling(self) -> Filling:
+        # Exchange-execution symbols (stocks, futures) only let a limit rest in the
+        # book with RETURN; FOK/IOC there would cancel it unless instantly fillable.
+        # Elsewhere the market rule applies: RETURN is refused by many
+        # market-execution brokers (10030) that accepted the IOC sent by 2.x.
+        return Filling.RETURN if self.exchange_execution else self.market_filling()
 
     def _volume_error(self, volume: float, reason: str) -> TradeError:
         return TradeError(

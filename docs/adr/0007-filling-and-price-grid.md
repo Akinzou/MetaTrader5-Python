@@ -9,9 +9,11 @@ rounded prices to `digits`.
 
 ## Decision
 
-Market and pending orders use the first mode the symbol allows, in the order
-FOK > IOC > RETURN. Prices snap to `trade_tick_size` (falling back to `point`)
-and are then rounded to `digits`.
+Market orders use the first mode the symbol allows, in the order
+FOK > IOC > RETURN. Pending orders follow the same rule, except on
+exchange-execution symbols, where they use RETURN: there it is the only mode
+that lets a limit order rest in the book. Prices snap to `trade_tick_size`
+(falling back to `point`) and are then rounded to `digits`.
 
 An earlier draft used a fixed RETURN for pending orders. We dropped it because
 MQL5 documents RETURN as not allowed in Market execution mode, so on those

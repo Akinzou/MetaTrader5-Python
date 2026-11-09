@@ -19,8 +19,10 @@ class Outcome(Enum):
 
 # PLACED is how the server confirms a pending order; 2.x only accepted DONE and
 # therefore re-sent limit orders that had already been placed.
+PLACED = 10008
+DONE = 10009
 DONE_PARTIAL = 10010
-_SUCCESS = frozenset({10008, 10009, DONE_PARTIAL})
+_SUCCESS = frozenset({PLACED, DONE, DONE_PARTIAL})
 
 # Only codes where the server provably did NOT execute the request. TIMEOUT and
 # CONNECTION are deliberately absent: the order may already be live, and an
@@ -36,7 +38,7 @@ _FAILURES: dict[int, tuple[ErrorKind, str]] = {
     10013: (ErrorKind.INVALID_ARGUMENT, "invalid request"),
     10014: (ErrorKind.INVALID_VOLUME, "invalid volume"),
     10015: (ErrorKind.INVALID_PRICE, "invalid price"),
-    10016: (ErrorKind.INVALID_STOPS, "invalid stops; check symbol stops_level"),
+    10016: (ErrorKind.INVALID_STOPS, "invalid stops; too close to the price or wrong side"),
     10017: (ErrorKind.TRADE_DISABLED, "trading is disabled"),
     10018: (ErrorKind.MARKET_CLOSED, "market is closed"),
     10019: (ErrorKind.NO_MONEY, "not enough money"),

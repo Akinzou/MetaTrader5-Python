@@ -27,10 +27,13 @@ def connect(
     retry: RetryPolicy | None = None,
 ) -> Result[Trader, TradeError]:
     """Start (or attach to) the MT5 terminal, log in, and return a ready Trader."""
-    try:
-        account = int(login)
-    except (TypeError, ValueError, OverflowError):
-        return Err(TradeError(ErrorKind.INVALID_ARGUMENT, f"login must be numeric, got {login!r}"))
+    account = _account_number(login)
+    if account is None:
+        return Err(
+            TradeError(
+                ErrorKind.INVALID_ARGUMENT, f"login must be a positive integer, got {login!r}"
+            )
+        )
     loaded = MetaTrader5Terminal.load()
     if isinstance(loaded, Err):
         return loaded
@@ -38,11 +41,20 @@ def connect(
     credentials = Credentials(account, str(password), str(server), path, timeout_ms)
     connected = terminal.connect(credentials)
     if isinstance(connected, Err):
-        # initialize() may have attached to (or launched) the terminal before the
-        # login failed; leaving that IPC session open blocks the next connect().
-        terminal.shutdown()
         return connected
     # Login and server only: account_info() also carries the owner's name and
     # balance, which do not belong in application logs.
     log.info("connected to %s as %s", server, account)
     return Ok(Trader(terminal, SystemClock(), magic=magic, deviation=deviation, retry=retry))
+
+
+def _account_number(login: object) -> int | None:
+    # Exact types only: int(True) == 1 and int(12345678.9) == 12345678 would log
+    # into a different account than the caller meant, without any error.
+    if isinstance(login, str) and login.strip().isdigit():
+        number = int(login)
+    elif type(login) is int:
+        number = login
+    else:
+        return None
+    return number if number > 0 else None

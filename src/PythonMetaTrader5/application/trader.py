@@ -12,7 +12,7 @@ from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
 from PythonMetaTrader5.domain.market import PendingKind, PendingOrder, Position, TradeReceipt
 from PythonMetaTrader5.domain.orders import Side, validate_comment
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
-from PythonMetaTrader5.domain.retcodes import DONE_PARTIAL
+from PythonMetaTrader5.domain.retcodes import DONE, DONE_PARTIAL
 from PythonMetaTrader5.domain.stops import Stop
 from PythonMetaTrader5.domain.symbol import SymbolSpec
 from PythonMetaTrader5.result import Err, Ok, Result
@@ -225,9 +225,7 @@ class Trader:
             side=e.side,
             volume=e.volume,
             price=reference,
-            # The symbol's own allowed mode for limits too: a fixed RETURN is refused
-            # (10030) by market-execution brokers, where the IOC of 2.x was accepted.
-            filling=e.spec.market_filling(),
+            filling=e.spec.market_filling() if pending is None else e.spec.pending_filling(),
             deviation=self._deviation,
             magic=self._magic,
             comment=e.comment,
@@ -262,16 +260,17 @@ class Trader:
             )
 
         closed = execute(self._terminal, self._clock, build, self._retry)
-        if isinstance(closed, Ok) and closed.value.retcode == DONE_PARTIAL:
-            return Err(
-                TradeError(
-                    ErrorKind.PARTIAL_FILL,
-                    f"closed {closed.value.volume} of {position.volume} lots",
-                    retcode=DONE_PARTIAL,
-                    receipt=closed.value,
-                )
-            )
-        return closed
+        # Only DONE proves the position is gone. PARTIAL leaves a remainder open and
+        # PLACED means the close order is queued, not executed: both must surface.
+        if isinstance(closed, Err) or closed.value.retcode == DONE:
+            return closed
+        receipt = closed.value
+        kind, message = (
+            (ErrorKind.PARTIAL_FILL, f"closed {receipt.volume} of {position.volume} lots")
+            if receipt.retcode == DONE_PARTIAL
+            else (ErrorKind.OUTCOME_UNKNOWN, "close order accepted but not executed yet")
+        )
+        return Err(TradeError(kind, message, retcode=receipt.retcode, receipt=receipt))
 
     def _cancel_one(self, order: PendingOrder) -> Result[TradeReceipt, TradeError]:
         request = CancelRequest(order=order.ticket)
@@ -279,8 +278,9 @@ class Trader:
 
 
 def _reject_empty(symbol: str | None) -> Err[TradeError] | None:
-    # "" must not reach the terminal: MT5 treats a falsy filter as "all symbols",
-    # so a webhook with a missing field would close the whole account.
+    # "" is rejected rather than passed on: a missing webhook field arrives as ""
+    # and is easily mistaken for "no filter" (2.x and the first 3.0 draft both
+    # dropped falsy filters), which would act on the whole account.
     if symbol == "":
         return Err(TradeError(ErrorKind.INVALID_ARGUMENT, "symbol must not be empty"))
     return None

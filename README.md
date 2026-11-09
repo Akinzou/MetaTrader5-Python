@@ -25,6 +25,10 @@ Built for bots (webhook executors, signal followers) where a trading call must
 - **SL/TP as prices or distances in points.**
 - **2.x compatible.** The old `Broker` class still works (deprecated).
 
+> One connection per process: the official package keeps a single global
+> terminal session, so a second `connect()` (or its failed login) affects the
+> first. Run one process per account.
+>
 > Requires Windows with a MetaTrader 5 terminal installed (the official
 > `MetaTrader5` package is Windows-only). Enable **Algo Trading** in the terminal.
 

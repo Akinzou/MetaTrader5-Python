@@ -1,14 +1,16 @@
 """Edge cases where a mistake would close, duplicate or silently lose trades."""
 
 import sys
+from dataclasses import replace
 
 import pytest
 
 from PythonMetaTrader5 import Broker, connect
 from PythonMetaTrader5.adapters.mt5_terminal import MetaTrader5Terminal
+from PythonMetaTrader5.application.ports import Credentials
 from PythonMetaTrader5.application.trader import Trader
 from PythonMetaTrader5.domain.errors import ErrorKind
-from PythonMetaTrader5.domain.market import Position
+from PythonMetaTrader5.domain.market import PendingKind, PendingOrder, Position
 from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.domain.requests import CancelRequest
 from PythonMetaTrader5.domain.symbol import Filling
@@ -148,3 +150,46 @@ def test_failed_login_releases_the_terminal(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setitem(sys.modules, "MetaTrader5", mt5)
     assert isinstance(connect(1, "pw", "Demo"), Err)
     assert mt5.calls[-1][0] == "shutdown"
+
+
+def test_limit_on_an_exchange_symbol_rests_with_return_filling(
+    trader: Trader, terminal: FakeTerminal
+) -> None:
+    terminal.specs["EURUSD"] = replace(terminal.specs["EURUSD"], exchange_execution=True)
+    trader.place_limit_order("EURUSD", "buy", 0.1, 1.05)
+    trader.open_position("EURUSD", "buy", 0.1)
+    limit, market = terminal.sent
+    assert limit.filling is Filling.RETURN  # type: ignore[union-attr]
+    assert market.filling is Filling.FOK  # type: ignore[union-attr]
+
+
+def test_close_answered_with_placed_is_not_reported_as_closed(
+    trader: Trader, terminal: FakeTerminal
+) -> None:
+    terminal.open_positions = [position(1)]
+    terminal.retcodes.append(10008)
+    result = trader.close_positions("EURUSD")
+    assert isinstance(result, Err)
+    assert result.error.errors[0].kind is ErrorKind.OUTCOME_UNKNOWN
+
+
+def test_legacy_cancel_orders_without_symbol_cancels_nothing(terminal: FakeTerminal) -> None:
+    terminal.open_orders = [PendingOrder(5, "EURUSD", Side.BUY, PendingKind.LIMIT, 0.1, 1.0, 0, "")]
+    with pytest.warns(DeprecationWarning, match="connect"):
+        broker = Broker(1, "pw", "Demo", terminal=terminal, clock=FakeClock())
+    broker.CancelOrders(None)  # type: ignore[arg-type]
+    assert terminal.sent == []
+
+
+@pytest.mark.parametrize("login", [True, 12345678.9, "12 34", -5])
+def test_login_that_would_be_coerced_is_rejected(login: object) -> None:
+    result = connect(login, "pw", "Demo")  # type: ignore[arg-type]
+    assert isinstance(result, Err)
+    assert result.error.kind is ErrorKind.INVALID_ARGUMENT
+
+
+def test_adapter_releases_the_session_after_a_failed_login() -> None:
+    mt5 = FakeMT5()
+    mt5.initialize_ok = False
+    assert isinstance(MetaTrader5Terminal(mt5).connect(Credentials(1, "pw", "s")), Err)
+    assert [name for name, _, _ in mt5.calls] == ["initialize", "shutdown"]

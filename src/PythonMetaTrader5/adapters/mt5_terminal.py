@@ -29,8 +29,16 @@ _RES_S_OK = 1
 # last_error() codes for which order_send provably never left this process
 # (bad arguments, no IPC link, terminal refused). Any other failure (send,
 # receive, timeout) may have reached the server, so its outcome is unknown.
-_NOT_SENT = frozenset({-2, -3, -4, -5, -6, -7, -10003, -10004})
-_AUTO_TRADING_DISABLED = -8
+_NOT_SENT_CODES = (
+    "RES_E_INVALID_PARAMS",
+    "RES_E_NO_MEMORY",
+    "RES_E_NOT_FOUND",
+    "RES_E_INVALID_VERSION",
+    "RES_E_AUTH_FAILED",
+    "RES_E_UNSUPPORTED",
+    "RES_E_INTERNAL_FAIL_INIT",
+    "RES_E_INTERNAL_FAIL_CONNECT",
+)
 
 
 class MetaTrader5Terminal:
@@ -55,6 +63,9 @@ class MetaTrader5Terminal:
         self._remove = mt5.TRADE_ACTION_REMOVE
         self._good_till_cancel = mt5.ORDER_TIME_GTC
         self._position_buy = mt5.POSITION_TYPE_BUY
+        self._exchange_execution = mt5.SYMBOL_TRADE_EXECUTION_EXCHANGE
+        self._not_sent = frozenset(getattr(mt5, name) for name in _NOT_SENT_CODES)
+        self._auto_trading_disabled = mt5.RES_E_AUTO_TRADING_DISABLED
 
     @classmethod
     def load(cls) -> Result[MetaTrader5Terminal, TradeError]:
@@ -79,10 +90,14 @@ class MetaTrader5Terminal:
             timeout=credentials.timeout_ms,
         ):
             return Ok(None)
+        # initialize() may have attached to (or launched) the terminal before the
+        # login failed; an open half-session makes every later initialize() fail.
+        error = self._last_error()
+        self._mt5.shutdown()
         return Err(
             TradeError(
                 ErrorKind.CONNECTION_FAILED,
-                f"login {credentials.login}@{credentials.server} failed: {self._last_error()}",
+                f"login {credentials.login}@{credentials.server} failed: {error}",
             )
         )
 
@@ -111,6 +126,7 @@ class MetaTrader5Terminal:
                 volume_max=float(info.volume_max),
                 volume_step=float(info.volume_step),
                 filling_flags=int(info.filling_mode),
+                exchange_execution=int(info.trade_exemode) == self._exchange_execution,
             )
         )
 
@@ -125,9 +141,7 @@ class MetaTrader5Terminal:
         payload = self._payload(request)
         result = self._mt5.order_send(payload)
         if result is None:
-            return Err(
-                TradeError(self._send_failure_kind(), f"order_send failed: {self._last_error()}")
-            )
+            return Err(self._send_failure())
         return Ok(
             TradeReceipt(
                 retcode=int(result.retcode),
@@ -229,11 +243,15 @@ class MetaTrader5Terminal:
             return Ok(())
         return Err(TradeError(ErrorKind.TERMINAL_ERROR, f"{call} failed: {self._last_error()}"))
 
-    def _send_failure_kind(self) -> ErrorKind:
-        code, _ = self._mt5.last_error()
-        if code == _AUTO_TRADING_DISABLED:
-            return ErrorKind.ALGO_TRADING_DISABLED
-        return ErrorKind.TERMINAL_ERROR if code in _NOT_SENT else ErrorKind.OUTCOME_UNKNOWN
+    def _send_failure(self) -> TradeError:
+        code, message = self._mt5.last_error()
+        if code == self._auto_trading_disabled:
+            kind = ErrorKind.ALGO_TRADING_DISABLED
+        elif code in self._not_sent:
+            kind = ErrorKind.TERMINAL_ERROR
+        else:
+            kind = ErrorKind.OUTCOME_UNKNOWN
+        return TradeError(kind, f"order_send failed: [{code}] {message}")
 
     def _last_error(self) -> str:
         code, message = self._mt5.last_error()

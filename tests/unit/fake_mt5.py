@@ -23,6 +23,16 @@ CONSTANTS = {
     "ORDER_TIME_GTC": 0,
     "POSITION_TYPE_BUY": 0,
     "POSITION_TYPE_SELL": 1,
+    "SYMBOL_TRADE_EXECUTION_EXCHANGE": 3,
+    "RES_E_INVALID_PARAMS": -2,
+    "RES_E_NO_MEMORY": -3,
+    "RES_E_NOT_FOUND": -4,
+    "RES_E_INVALID_VERSION": -5,
+    "RES_E_AUTH_FAILED": -6,
+    "RES_E_UNSUPPORTED": -7,
+    "RES_E_AUTO_TRADING_DISABLED": -8,
+    "RES_E_INTERNAL_FAIL_INIT": -10003,
+    "RES_E_INTERNAL_FAIL_CONNECT": -10004,
 }
 
 
@@ -96,7 +106,7 @@ def symbol_info(name: str = "EURUSD", visible: bool = True) -> SimpleNamespace:
         volume_max=100.0,
         volume_step=0.01,
         filling_mode=1,
-        trade_stops_level=10,
+        trade_exemode=2,
     )
 
 
