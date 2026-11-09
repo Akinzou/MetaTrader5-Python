@@ -16,7 +16,8 @@ from PythonMetaTrader5.domain.orders import Side
 _POSITION_TYPE = {Side.BUY: 0, Side.SELL: 1}
 
 # The keys 2.x `as_dict=True` built by hand. A projection of as_object() rather
-# than a second mapping, so the two 2.x shapes cannot drift apart.
+# than a second mapping, so the shared fields cannot drift apart; only sl/tp
+# differ on purpose (None instead of 0.0, as in 2.x).
 _V2_DICT_KEYS = (
     "ticket",
     "symbol",

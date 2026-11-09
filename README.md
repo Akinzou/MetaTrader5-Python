@@ -96,10 +96,14 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
 - `sl` / `tp`: a float is an **absolute price**; `Stop.points(n)` is a distance
   of `n` points from the entry price (`Stop.at_price(p)` is the explicit form).
   For limit orders the distance is measured from the limit price, and for a
-  market order with an explicit `price` from that price. Zero, negative and
-  non-finite stops are rejected (`INVALID_STOPS`); pass `None` for no stop.
-  `Stop.points()` / `Stop.at_price()` raise `ValueError` on such values, since
-  a zero stop would mean "no stop" to MT5.
+  market order with an explicit `price` from that price. A float stop that is
+  zero, negative or not finite is rejected (`INVALID_STOPS`); pass `None` for
+  no stop. `Stop.points()` / `Stop.at_price()` raise `ValueError` on a zero or
+  non-finite value (a zero stop would mean "no stop" to MT5); the sign of a
+  points distance is ignored. For a value that may be bad at runtime, such as
+  an ATR that is NaN during warm-up, use
+  `Stop.parse(value, StopKind.POINTS)`, which returns `Ok(stop)` /
+  `Err(INVALID_STOPS)`.
 - Amounts may be `int`, `float`, `Decimal` or numpy scalars; `bool` and strings
   are refused (the deprecated `Broker` still converts numeric strings).
 - `price` (market orders): send at this price once instead of the live quote.

@@ -69,7 +69,7 @@ class Trader:
                 quote = tick.value.entry_price(e.side)
             return e.request(quote, pending=None, deviation=self._deviation, magic=self._magic)
 
-        policy = self._retry if price is None else replace(self._retry, attempts=1)
+        policy = self._retry if e.price is None else replace(self._retry, attempts=1)
         return execute(self._terminal, self._clock, build, policy)
 
     def place_limit_order(

@@ -21,5 +21,8 @@ def positive_float(value: object, *, unsigned: bool = False) -> float | None:
         return None
     if isinstance(value, Decimal) and value.is_nan():
         return None
-    number = abs(float(value)) if unsigned else float(value)
+    try:
+        number = abs(float(value)) if unsigned else float(value)
+    except (OverflowError, ValueError):
+        return None  # 10**400 and odd Real subclasses: "not a usable number"
     return number if math.isfinite(number) and number > 0 else None

@@ -6,8 +6,10 @@ from dataclasses import dataclass
 from enum import Enum
 
 from PythonMetaTrader5.domain.amounts import positive_float
+from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
 from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.domain.symbol import SymbolSpec
+from PythonMetaTrader5.result import Err, Ok, Result
 
 
 class StopKind(Enum):
@@ -22,17 +24,22 @@ class Stop:
 
     def __post_init__(self) -> None:
         # The invariant lives here, so every Stop is valid wherever it is built.
-        # A points distance drops its sign: direction comes from the trade side,
-        # so `-1000` and `1000` both mean "1000 points on the losing side".
-        number = positive_float(self.value, unsigned=self.kind is StopKind.POINTS)
-        if number is None:
-            # Raised, not returned: a Stop of 0 cannot exist (MT5 would read it as
-            # "no stop"), and bool/NaN/str are caller bugs. Plain floats passed as
-            # sl/tp are checked without raising, by domain.inputs.stop_input.
-            raise ValueError(
-                f"{self.kind.value} stop must be a positive finite number, got {self.value!r}"
-            )
-        object.__setattr__(self, "value", number)
+        # Raised, not returned: a Stop of 0 cannot exist (MT5 would read it as "no
+        # stop"). Code holding a value that may be bad (an ATR that is NaN during
+        # warm-up) uses Stop.parse, which returns a Result instead.
+        if not isinstance(self.kind, StopKind):
+            raise TypeError(f"kind must be a StopKind, got {self.kind!r}")
+        parsed = _checked(self.value, self.kind)
+        if isinstance(parsed, Err):
+            raise ValueError(parsed.error.message)
+        object.__setattr__(self, "value", parsed.value)
+
+    @classmethod
+    def parse(cls, value: object, kind: StopKind) -> Result[Stop, TradeError]:
+        checked = _checked(value, kind)
+        if isinstance(checked, Err):
+            return checked
+        return Ok(cls(checked.value, kind))
 
     @classmethod
     def at_price(cls, price: float) -> Stop:
@@ -52,3 +59,13 @@ class Stop:
         if self.kind is StopKind.PRICE:
             return spec.normalize_price(self.value)
         return spec.normalize_price(reference + direction * self.value * spec.point)
+
+
+def _checked(value: object, kind: StopKind) -> Result[float, TradeError]:
+    # A points distance drops its sign: direction comes from the trade side, so
+    # `-1000` and `1000` both mean "1000 points on the losing side".
+    number = positive_float(value, unsigned=kind is StopKind.POINTS)
+    if number is None:
+        message = f"{kind.value} stop must be a positive finite number, got {value!r}"
+        return Err(TradeError(ErrorKind.INVALID_STOPS, message))
+    return Ok(number)

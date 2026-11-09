@@ -8,11 +8,12 @@ here instead of being passed on.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from numbers import Integral
 
 from PythonMetaTrader5.domain.amounts import positive_float
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
-from PythonMetaTrader5.domain.stops import Stop
+from PythonMetaTrader5.domain.stops import Stop, StopKind
 from PythonMetaTrader5.result import Err, Ok, Result
 
 
@@ -27,14 +28,10 @@ def stop_input(value: object, what: str) -> Result[Stop | None, TradeError]:
     """``None`` means no stop; a float is a price; zero is refused, never "no stop"."""
     if value is None or isinstance(value, Stop):
         return Ok(value)  # a Stop validated itself when it was built
-    number = positive_float(value)
-    if number is None:
-        return Err(
-            TradeError(
-                ErrorKind.INVALID_STOPS, f"{what} must be a positive finite price, got {value!r}"
-            )
-        )
-    return Ok(Stop.at_price(number))
+    parsed = Stop.parse(value, StopKind.PRICE)
+    if isinstance(parsed, Err):
+        return Err(replace(parsed.error, message=f"{what}: {parsed.error.message}"))
+    return Ok(parsed.value)
 
 
 def ticket_filter(ticket: object) -> Result[int | None, TradeError]:

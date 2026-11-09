@@ -56,5 +56,8 @@ well.
   to ask for no stop.
 - `Stop.points(0)` raises `ValueError` when it is built, instead of the server
   rejecting it with 10016.
-- Signalling-NaN Decimals are refused without raising: `float(Decimal("sNaN"))`
-  raises, so the NaN check runs first.
+- On the `Result` paths (`sl` / `tp` floats, volume, prices, `Stop.parse`),
+  signalling-NaN Decimals and numbers too large for a float are refused
+  without raising. `float(Decimal("sNaN"))` and `float(10**400)` both raise,
+  so both are handled in `positive_float`. The `Stop` constructors raise
+  `ValueError` on them, like on any other invalid stop.

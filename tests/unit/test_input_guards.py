@@ -9,7 +9,7 @@ from decimal import Decimal
 
 import pytest
 
-from PythonMetaTrader5 import Broker, Stop
+from PythonMetaTrader5 import Broker, Stop, StopKind
 from PythonMetaTrader5.adapters.mt5_terminal import MetaTrader5Terminal
 from PythonMetaTrader5.application.entries import Entry
 from PythonMetaTrader5.application.trader import Trader
@@ -209,3 +209,44 @@ def test_an_entry_without_a_price_or_a_quote_sends_nothing() -> None:
     result = entry.request(pending=None, deviation=10, magic=0)
     assert isinstance(result, Err)
     assert result.error.kind is ErrorKind.NO_PRICE
+
+
+def test_a_price_that_snaps_to_zero_is_refused_before_sending(
+    trader: Trader, terminal: FakeTerminal
+) -> None:
+    for result in (
+        trader.open_position("EURUSD", "buy", 0.1, price=1e-6),
+        trader.place_limit_order("EURUSD", "buy", 0.1, 0.000004),
+    ):
+        assert isinstance(result, Err)
+        assert result.error.kind is ErrorKind.INVALID_PRICE
+    assert terminal.sent == []
+
+
+def test_numbers_too_large_for_a_float_are_refused_not_raised(
+    trader: Trader, terminal: FakeTerminal
+) -> None:
+    huge = 10**400
+    for result, kind in (
+        (trader.open_position("EURUSD", "buy", huge), ErrorKind.INVALID_VOLUME),
+        (trader.open_position("EURUSD", "buy", 0.1, sl=huge), ErrorKind.INVALID_STOPS),
+    ):
+        assert isinstance(result, Err)
+        assert result.error.kind is kind
+    with pytest.warns(DeprecationWarning, match="connect"):
+        broker = Broker(1, "pw", "Demo", terminal=terminal, clock=FakeClock())
+    assert broker.OpenPosition("EURUSD", "buy", 0.1, sl=huge, sl_type="offset") is None
+    assert terminal.sent == []
+
+
+def test_stop_parse_is_the_non_raising_way_to_build_a_stop() -> None:
+    assert Stop.parse(-1000, StopKind.POINTS) == Ok(Stop.points(1000))
+    for value in (math.nan, 0, True):
+        parsed = Stop.parse(value, StopKind.POINTS)
+        assert isinstance(parsed, Err)
+        assert parsed.error.kind is ErrorKind.INVALID_STOPS
+
+
+def test_a_stop_kind_must_be_a_stop_kind() -> None:
+    with pytest.raises(TypeError, match="StopKind"):
+        Stop(1000, "points")  # type: ignore[arg-type]

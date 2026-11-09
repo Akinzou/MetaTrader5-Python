@@ -22,7 +22,7 @@ from PythonMetaTrader5.domain.market import (
     TradeReceipt,
 )
 from PythonMetaTrader5.domain.orders import Side
-from PythonMetaTrader5.domain.stops import Stop
+from PythonMetaTrader5.domain.stops import Stop, StopKind
 from PythonMetaTrader5.legacy.broker import Broker
 from PythonMetaTrader5.result import Err, Ok, Result
 
@@ -39,6 +39,7 @@ __all__ = [
     "RetryPolicy",
     "Side",
     "Stop",
+    "StopKind",
     "Tick",
     "TradeError",
     "TradeReceipt",
