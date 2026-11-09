@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-11-09
+
 ### Fixed
 - A defaulted `close_positions()` / `cancel_pending_orders()` that matched
   nothing dropped a failure of its follow-up check for items with other magics
@@ -19,6 +21,12 @@ All notable changes to this project are documented here. The format follows
   and a checklist before trading real money. The README may have up to 600
   lines; every other file keeps the 300-line limit. Links to other documents
   are absolute GitHub URLs, so they also work on PyPI.
+- The README published to PyPI links the documents of its own release: the
+  publish workflow pins `blob/master` and `tree/master` links to the tag
+  `v<version>`. It runs only from that tag, only if the tag is on master with a
+  green CI run, and fails if a file or folder link names another ref (ADR
+  0012). The README in git keeps linking master. The upload no longer skips
+  versions already on PyPI, so a re-run fails instead of passing empty.
 
 ## [3.0.0] - 2026-11-09
 

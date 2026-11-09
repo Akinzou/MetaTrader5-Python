@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   deployments: write
 
 jobs:
@@ -18,6 +19,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          # Nothing after checkout needs git auth; build tools run with no token.
+          persist-credentials: false
+
+      # A tag can sit on any commit; release only what was merged to master.
+      - name: Require the tagged commit to be on master
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/master || {
+            echo "::error::$GITHUB_REF is not on master; merge the release PR first"
+            exit 1
+          }
+
+      # Being on master is not being green: an --admin merge skips the PR checks.
+      - name: Require a successful CI run for the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&status=success" --jq '.total_count')
+          [ "$runs" -gt 0 ] || {
+            echo "::error::ci.yml has no successful run for $GITHUB_SHA"
+            exit 1
+          }
 
       - name: Setup Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -30,14 +54,19 @@ jobs:
       - name: Clean previous builds
         run: rm -rf dist build *.egg-info
 
+      # Fails unless run from the tag v<version> (gh workflow run ... --ref vX.Y.Z),
+      # so the package and its README links come from the same release (ADR 0012).
+      - name: Pin README links to the release tag
+        run: python scripts/pin_readme_links.py "$GITHUB_REF"
+
       - name: Build package
         run: python -m build
 
       - name: Twine check
-        run: twine check dist/*
+        run: twine check --strict dist/*
 
       - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: twine upload --skip-existing dist/*
+        run: twine upload dist/*

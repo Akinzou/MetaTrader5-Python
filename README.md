@@ -41,9 +41,10 @@ Built for bots (webhook executors, signal followers) where a trading call must
 - [Development](#development)
 - [License](#license)
 
-Links to the other documents point to GitHub. On PyPI the Contents entries
+Links to the other documents point to GitHub; on PyPI they open the files of
+the release you are reading (ADR 0012). On PyPI the Contents entries
 above do not jump to their sections; read this page on
-[GitHub](https://github.com/Akinzou/MetaTrader5-Python#contents) for that.
+[GitHub](https://github.com/Akinzou/MetaTrader5-Python/blob/master/README.md#contents) for that.
 
 Other documents: [CHANGELOG.md](https://github.com/Akinzou/MetaTrader5-Python/blob/master/CHANGELOG.md) ·
 [MIGRATION.md](https://github.com/Akinzou/MetaTrader5-Python/blob/master/MIGRATION.md) · [docs/architecture.md](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/architecture.md) ·
@@ -427,6 +428,7 @@ to MetaTrader 5. Details: [docs/architecture.md](https://github.com/Akinzou/Meta
 | [0009](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0009-one-lock-per-process.md) | One lock per process around terminal calls |
 | [0010](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0010-keep-the-metatrader5-re-export.md) | Keep re-exporting the MetaTrader5 namespace, lazily |
 | [0011](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0011-close-all-defaults-to-own-magic.md) | Close-all and cancel-all default to the trader's own magic |
+| [0012](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0012-pin-readme-links-at-publish.md) | Publish from the tag and pin the README's links there |
 
 ## Development
 
@@ -444,6 +446,10 @@ package and is skipped where it is not installed (anywhere but Windows).
 Integration tests trade on a **demo** account and are skipped unless
 `MT5_LOGIN`, `MT5_PASSWORD` and `MT5_SERVER` are set (they refuse to run on a
 live account): `pytest -m integration`.
+
+Releases are published from the tag `v<version>`: the publish workflow runs
+`scripts/pin_readme_links.py`, which points the README's `master` links at that
+tag and refuses to run from any other ref (ADR 0012).
 
 ## License
 
