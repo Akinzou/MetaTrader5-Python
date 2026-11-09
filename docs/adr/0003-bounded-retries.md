@@ -37,5 +37,8 @@ For pending orders, PLACED is the normal success.
 
 ## Consequences
 
-- Every call returns within `attempts × (delay + round trip)`.
+- Every trading request returns within `attempts × (delay + round trip)`; a
+  batch close or cancel takes that per position or order. The deprecated
+  `Broker.login(ToEffect=True)` is the exception: it retries until the login
+  works, because 2.x documented exactly that.
 - Callers that handle `OUTCOME_UNKNOWN` must reconcile with `positions()`.

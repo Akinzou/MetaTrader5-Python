@@ -25,3 +25,6 @@ every new MT5 symbol part of our public API without any review.
 
 - Old scripts keep running. Scripts that relied on re-exported MT5 names must
   import `MetaTrader5` directly.
+- 2.x returned raw MT5 objects, so "the same return shapes" means named
+  tuples (`LegacyPosition`, `LegacyReceipt`) with MT5's field names and field
+  order. `tests/contract` checks them against the installed package.

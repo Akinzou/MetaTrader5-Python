@@ -13,8 +13,13 @@ A safe, typed trading layer over the official
 Built for bots (webhook executors, signal followers) where a trading call must
 **never hang, never retry blindly, and never fail silently**:
 
-- **Every call returns.** Requotes are retried a bounded number of times with a
-  fresh quote; everything else comes back immediately as a typed error.
+- **Every trading call returns.** Requotes are retried a bounded number of times
+  with a fresh quote; everything else comes back immediately as a typed error.
+  (The deprecated `Broker.login(ToEffect=True)` is the one exception: as in
+  2.x, it keeps trying until the login works.)
+- **No silent defaults.** Values that MT5 would quietly read as something else
+  are refused before sending: `sl=0` ("no stop"), `ticket=0` (possibly "no
+  filter"), `volume=True` (one lot), NaN and infinities.
 - **No double fills.** Timeouts and lost connections are never auto-retried:
   the order may already be live.
 - **Typed results.** `Ok(receipt)` or `Err(TradeError)` with an `ErrorKind`
@@ -28,6 +33,10 @@ Built for bots (webhook executors, signal followers) where a trading call must
 > One connection per process: the official package keeps a single global
 > terminal session, so a second `connect()` (or its failed login) affects the
 > first. Run one process per account.
+>
+> Thread-safe within the library: every terminal call holds one process-wide
+> lock, so a threaded webhook server can share a `Trader`. Calls you make to
+> the `MetaTrader5` module directly bypass that lock.
 >
 > Requires Windows with a MetaTrader 5 terminal installed (the official
 > `MetaTrader5` package is Windows-only). Enable **Algo Trading** in the terminal.
@@ -86,15 +95,20 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
 - `side`: `Side.BUY` / `Side.SELL`, or the strings `"buy"`, `"sell"`, `"long"`, `"short"`.
 - `sl` / `tp`: a float is an **absolute price**; `Stop.points(n)` is a distance
   of `n` points from the entry price (`Stop.at_price(p)` is the explicit form).
-  For limit orders the distance is measured from the limit price.
+  For limit orders the distance is measured from the limit price, and for a
+  market order with an explicit `price` from that price. Zero, negative and
+  non-finite stops are rejected (`INVALID_STOPS`); pass `None` for no stop.
 - `price` (market orders): send at this price once instead of the live quote.
 - `comment`: at most 31 characters (the terminal's limit). Longer comments are
   rejected, not truncated.
 - **`close_positions()` and `cancel_pending_orders()` without arguments act on
   the whole account**, including manual trades. A bot should always pass its
   `magic` (and a symbol); an empty string `""` is rejected.
-- `BatchFailure.succeeded` / `.errors` tell exactly which tickets closed and
-  which did not; each `TradeError.ticket` names the position/order.
+- `BatchFailure.errors` names every position/order that failed
+  (`TradeError.ticket`). `BatchFailure.succeeded` holds the receipts of the
+  ones that worked; their `order` / `deal` are the IDs of the closing deal, not
+  the position ticket.
+- `ticket` must be a positive integer; `0`, `True` or `"7"` are rejected.
 
 ### Errors
 
@@ -139,6 +153,8 @@ mypy
 pytest --cov
 ```
 
+`tests/contract` compares the unit-test fakes with the installed `MetaTrader5`
+package and is skipped where it is not installed (anywhere but Windows).
 Integration tests trade on a **demo** account and are skipped unless
 `MT5_LOGIN`, `MT5_PASSWORD` and `MT5_SERVER` are set (they refuse to run on a
 live account): `pytest -m integration`.

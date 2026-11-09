@@ -21,9 +21,16 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
 - CI: ruff, mypy --strict, tests on Python 3.10-3.14, a Windows job against the
   real `MetaTrader5` package, Semgrep, a 300-line file limit, build checks.
 - Integration tests against a demo account.
+- Contract tests comparing the unit-test fakes with the real `MetaTrader5`
+  package (run by the Windows CI job).
+- Thread safety: every terminal call holds one process-wide lock.
 
 ### Changed
-- `Broker` is a deprecated facade over `Trader` with the 2.x method names.
+- `Broker` is a deprecated facade over `Trader` with the 2.x method names. It
+  returns `LegacyPosition` / `LegacyReceipt` named tuples with the fields and
+  field order of MT5's `TradePosition` / `OrderSendResult`.
+- `Position` carries every `TradePosition` field (`swap`, `identifier`, ...);
+  `TradeReceipt` gains `retcode_external`.
 - Bounded retries (requotes only) instead of endless loops.
 - Prices snap to the symbol's tick size instead of rounding to `digits`.
 - Logging moved from `loguru` to the standard `logging` module.
@@ -32,7 +39,8 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
 
 ### Removed
 - `pyautogui` Ctrl+E hotkey on retcode 10027.
-- The `from MetaTrader5 import *` re-export.
+- The `import *` re-exports of `MetaTrader5`, `time`, loguru's `logger` and
+  `pyautogui`.
 - The `Broker.password` attribute.
 
 ### Safety
@@ -44,8 +52,13 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
   re-sent.
 - Logins that would be coerced (`True`, `12345678.9`, non-ASCII digits) are
   rejected, in `connect()` and in `Broker`.
-- A failed first login shuts the half-open terminal session down; a failed
-  re-login keeps an already working session.
+- Every failed login shuts the terminal session down, and `Broker` refuses to
+  trade until a login succeeds.
+- `sl=0` / `tp=0`, stops that resolve to zero or below, tickets that are not
+  positive integers, `volume=True` and non-finite numbers are rejected before
+  sending.
+- `positions(symbol, ticket=...)` applies both filters (MT5 drops the symbol
+  once a ticket is given).
 - Pending orders on exchange-execution symbols use RETURN filling.
 - `Broker.Close(None)` / `Broker.CancelOrders(None)` act on nothing.
 
