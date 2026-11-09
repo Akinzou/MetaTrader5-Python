@@ -42,8 +42,9 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
 
 ### Removed
 - `pyautogui` Ctrl+E hotkey on retcode 10027.
-- The `import *` re-exports of `MetaTrader5`, `time`, loguru's `logger` and
-  `pyautogui`.
+- The `import *` re-exports of `time`, loguru's `logger` and `pyautogui`. The
+  `MetaTrader5` namespace is still re-exported (ADR 0010); only `Tick` now
+  means the library's quote model.
 - The `Broker.password` attribute.
 
 ### Safety

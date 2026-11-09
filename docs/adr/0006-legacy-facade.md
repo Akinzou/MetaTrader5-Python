@@ -1,6 +1,7 @@
 # ADR 0006: Keep a 2.x `Broker` facade; drop the star re-export
 
-- Status: accepted (3.0.0)
+- Status: accepted (3.0.0). The star re-export decision is superseded by
+  [ADR 0010](0010-keep-the-metatrader5-re-export.md).
 
 ## Context
 

@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from PythonMetaTrader5.domain.market import Tick
 from PythonMetaTrader5.legacy.views import LegacyPosition, LegacyReceipt
 from tests.unit.fake_mt5 import CONSTANTS, FakeMT5, raw_order, raw_position, symbol_info
 
@@ -40,3 +41,13 @@ def test_fake_rows_only_use_fields_the_real_objects_have() -> None:
     assert set(vars(FakeMT5().send_result)) == set(fields(mt5.OrderSendResult)) - {"request"}
     assert set(vars(raw_order())) <= set(fields(mt5.TradeOrder))
     assert set(vars(symbol_info())) <= set(fields(mt5.SymbolInfo))
+
+
+def test_the_2x_star_import_still_brings_the_metatrader5_namespace() -> None:
+    namespace: dict[str, Any] = {}
+    exec("from PythonMetaTrader5 import *", namespace)  # noqa: S102 - the 2.x idiom itself
+    assert namespace["symbol_info"] is mt5.symbol_info
+    assert namespace["ORDER_TYPE_BUY"] == mt5.ORDER_TYPE_BUY
+    # Our names win a collision: MT5 has its own Tick struct.
+    assert namespace["Tick"] is Tick
+    assert namespace["Broker"].__module__ == "PythonMetaTrader5.legacy.broker"

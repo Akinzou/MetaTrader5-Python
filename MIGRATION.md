@@ -62,19 +62,19 @@ upgrading a bot that trades real money.
 | `GetPositions()` returned raw MT5 `TradePosition` objects | `LegacyPosition` named tuples with every `TradePosition` field in MT5's order; `as_dict=True` returns the same 12 keys as before | No dependency on MT5 internals |
 | `broker.password` attribute | Removed; credentials are kept in a non-printing object | The password showed up in debug dumps |
 
-## Removed: the `import *` re-exports
+## Star import: MetaTrader5 names stay, three others are gone
 
-2.x re-exported the whole `MetaTrader5` namespace plus the modules it used
-itself. `from PythonMetaTrader5 import *` therefore also gave you
-`symbol_info`, `ORDER_TYPE_BUY` and friends, and `time`, `logger` (loguru) and
-`pyautogui`. None of these come through any more. Import them yourself:
+`from PythonMetaTrader5 import *` still brings in the `MetaTrader5`
+namespace (`symbol_info`, `ORDER_TYPE_BUY`, ...), as in 2.x (ADR 0010). Two
+differences:
+
+- `Tick` is now the library's own quote model, not MT5's tick struct. Use
+  `MetaTrader5.Tick` if you need the struct.
+- `time`, `logger` (loguru) and `pyautogui`, which 2.x also leaked through the
+  star import, are gone. Import them yourself:
 
 ```python
 import time
-
-import MetaTrader5 as mt5
-
-info = mt5.symbol_info("EURUSD")
 ```
 
 ## Logging

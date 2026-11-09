@@ -23,6 +23,7 @@ from PythonMetaTrader5.domain.market import (
 )
 from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.domain.stops import Stop, StopKind
+from PythonMetaTrader5.legacy import mt5_namespace
 from PythonMetaTrader5.legacy.broker import Broker
 from PythonMetaTrader5.result import Err, Ok, Result
 
@@ -46,3 +47,11 @@ __all__ = [
     "Trader",
     "connect",
 ]
+
+# 2.x re-exported the whole MetaTrader5 namespace, and its README relied on it
+# (`symbol_info("EURUSD")` after a star import). Kept for those scripts rather
+# than breaking them on upgrade (ADR 0010); our own names win a collision.
+_reexported = mt5_namespace.public_names(mt5_namespace.load(), taken=set(globals()))
+globals().update(_reexported)
+__all__ += sorted(_reexported)  # noqa: PLE0605 - extended at import time on purpose
+del _reexported

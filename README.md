@@ -152,7 +152,8 @@ logging configuration, warnings and errors still reach stderr.
 ## Migrating from 2.x
 
 `from PythonMetaTrader5 import Broker` keeps working and emits a
-`DeprecationWarning`. Several 2.x behaviours were unsafe and changed: see
+`DeprecationWarning`. `from PythonMetaTrader5 import *` still brings in the
+`MetaTrader5` functions and constants, as in 2.x. Several 2.x behaviours were unsafe and changed: see
 [MIGRATION.md](MIGRATION.md).
 
 ## Development
