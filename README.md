@@ -35,8 +35,9 @@ Built for bots (webhook executors, signal followers) where a trading call must
 > first. Run one process per account.
 >
 > Thread-safe within the library: every terminal call holds one process-wide
-> lock, so a threaded webhook server can share a `Trader`. Calls you make to
-> the `MetaTrader5` module directly bypass that lock.
+> lock, so a threaded webhook server can share a `Trader`. The MT5 functions
+> re-exported through `PythonMetaTrader5` hold it too. Calls you make to the
+> `MetaTrader5` module directly bypass it.
 >
 > Requires Windows with a MetaTrader 5 terminal installed (the official
 > `MetaTrader5` package is Windows-only). Enable **Algo Trading** in the terminal.

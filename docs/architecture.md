@@ -44,7 +44,9 @@ volume checks) is plain functions and methods on domain objects, not ports.
 
 `last_error()` in the `MetaTrader5` package is process-global, so the adapter
 holds one module-level lock around every terminal call and the error read that
-explains it ([ADR 0009](adr/0009-one-lock-per-process.md)).
+explains it ([ADR 0009](adr/0009-one-lock-per-process.md)). The lock and the
+single `MetaTrader5` import live in `adapters/mt5_session.py`, shared with the
+lazy 2.x namespace re-export ([ADR 0010](adr/0010-keep-the-metatrader5-re-export.md)).
 
 ## Errors
 

@@ -65,8 +65,9 @@ upgrading a bot that trades real money.
 ## Star import: MetaTrader5 names stay, three others are gone
 
 `from PythonMetaTrader5 import *` still brings in the `MetaTrader5`
-namespace (`symbol_info`, `ORDER_TYPE_BUY`, ...), as in 2.x (ADR 0010). Two
-differences:
+namespace (`symbol_info`, `ORDER_TYPE_BUY`, ...), as in 2.x (ADR 0010). The
+functions now run under the library's session lock, so they cannot interleave
+with a `Trader` call in another thread. Two differences:
 
 - `Tick` is now the library's own quote model, not MT5's tick struct. Use
   `MetaTrader5.Tick` if you need the struct.

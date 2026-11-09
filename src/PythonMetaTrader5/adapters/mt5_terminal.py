@@ -6,14 +6,11 @@ types and the shape of its result objects.
 
 from __future__ import annotations
 
-import functools
-import importlib
 import math
-import threading
-from collections.abc import Callable
-from typing import Any, ParamSpec, TypeVar
+from typing import Any
 
 from PythonMetaTrader5.adapters import mt5_mapping
+from PythonMetaTrader5.adapters.mt5_session import import_metatrader5, serialized
 from PythonMetaTrader5.application.ports import Credentials
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
 from PythonMetaTrader5.domain.market import PendingOrder, Position, Tick, TradeReceipt
@@ -35,23 +32,8 @@ _NOT_SENT_CODES = (
     "RES_E_INTERNAL_FAIL_CONNECT",
 )
 
-# last_error() is process-global, so a call and the error read that explains it
-# must not interleave with another thread's call. The lock is module-level, not
-# per adapter: connect() builds a new adapter each time, and two Traders in one
-# process share the one MT5 session. Direct MetaTrader5 calls made by user code
-# are outside this lock.
-_SESSION = threading.RLock()
-_P = ParamSpec("_P")
-_R = TypeVar("_R")
-
-
-def _serialized(method: Callable[_P, _R]) -> Callable[_P, _R]:
-    @functools.wraps(method)
-    def locked(*args: _P.args, **kwargs: _P.kwargs) -> _R:
-        with _SESSION:
-            return method(*args, **kwargs)
-
-    return locked
+# Every public method holds the process-wide session lock (ADR 0009).
+_serialized = serialized
 
 
 class MetaTrader5Terminal:
@@ -86,8 +68,11 @@ class MetaTrader5Terminal:
     @classmethod
     def load(cls) -> Result[MetaTrader5Terminal, TradeError]:
         try:
-            module = importlib.import_module("MetaTrader5")
-        except ImportError:
+            module = import_metatrader5()
+        except ImportError as error:
+            message = f"the MetaTrader5 package is installed but cannot be imported: {error}"
+            return Err(TradeError(ErrorKind.CONNECTION_FAILED, message))
+        if module is None:
             return Err(
                 TradeError(
                     ErrorKind.CONNECTION_FAILED,

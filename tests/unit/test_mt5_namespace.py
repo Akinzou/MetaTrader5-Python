@@ -2,24 +2,91 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
-from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
-from PythonMetaTrader5.legacy import mt5_namespace
+import PythonMetaTrader5
+from PythonMetaTrader5.adapters import mt5_session
+from PythonMetaTrader5.adapters.mt5_terminal import MetaTrader5Terminal
+from PythonMetaTrader5.domain.errors import ErrorKind
+from PythonMetaTrader5.domain.market import Tick
+from PythonMetaTrader5.result import Err
+
+from .fake_mt5 import FakeMT5
 
 
-def test_public_names_are_taken_and_ours_win_a_collision() -> None:
-    module = SimpleNamespace(symbol_info=print, ORDER_TYPE_BUY=0, Tick=object, _private=1)
-    names = mt5_namespace.public_names(module, taken={"Tick"})  # type: ignore[arg-type]
-    assert names == {"symbol_info": print, "ORDER_TYPE_BUY": 0}
+def star_import() -> dict[str, Any]:
+    namespace: dict[str, Any] = {}
+    exec("from PythonMetaTrader5 import *", namespace)  # noqa: S102 - the 2.x idiom itself
+    return namespace
 
 
-def test_nothing_is_re_exported_without_the_package() -> None:
-    assert mt5_namespace.public_names(None, taken=set()) == {}
+def test_the_2x_star_import_brings_mt5_names_and_ours_win(no_real_terminal: FakeMT5) -> None:
+    names = star_import()
+    assert names["ORDER_TYPE_BUY"] == 0
+    assert names["Tick"] is Tick  # MT5 has its own Tick struct; ours wins
+    assert names["Broker"] is PythonMetaTrader5.Broker
+    names["symbol_select"]("EURUSD", True)
+    assert no_real_terminal.calls[-1] == ("symbol_select", ("EURUSD", True), {})
+    for leaked_by_2x in ("time", "logger", "pyautogui"):
+        assert leaked_by_2x not in names
 
 
-def test_load_gives_none_where_the_package_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_re_exported_functions_run_under_the_adapters_session_lock(
+    no_real_terminal: FakeMT5,
+) -> None:
+    held: list[bool] = []
+    no_real_terminal.last_error = lambda: held.append(mt5_session.SESSION._is_owned()) or (1, "")  # type: ignore[attr-defined, method-assign, func-returns-value]
+    PythonMetaTrader5.last_error()
+    assert held == [True]
+
+
+def test_without_the_package_only_our_names_exist(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "MetaTrader5", None)
-    assert mt5_namespace.load() is None
+    names = star_import()
+    assert "Broker" in names
+    assert "symbol_info" not in names
+    with pytest.raises(AttributeError, match="symbol_info"):
+        _ = PythonMetaTrader5.symbol_info
+
+
+def test_a_broken_install_is_reported_not_hidden(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(name: str) -> None:
+        raise ImportError("DLL load failed while importing _core")
+
+    monkeypatch.setattr(mt5_session.importlib, "import_module", broken)
+    with pytest.raises(ImportError, match="DLL load failed"):
+        _ = PythonMetaTrader5.symbol_info
+    loaded = MetaTrader5Terminal.load()
+    assert isinstance(loaded, Err)
+    assert loaded.error.kind is ErrorKind.CONNECTION_FAILED
+    assert "DLL load failed" in loaded.error.message
+
+
+def test_importing_the_library_does_not_import_metatrader5() -> None:
+    # The re-export is lazy: pure-domain users and tooling never pay for or
+    # depend on the MetaTrader5 import.
+    probe = "import sys, PythonMetaTrader5; print('MetaTrader5' in sys.modules)"
+    out = subprocess.run(  # noqa: S603 - fixed arguments, our own interpreter
+        [sys.executable, "-c", probe], capture_output=True, text=True, check=True
+    )
+    assert out.stdout.strip() == "False"
+
+
+def test_dir_lists_our_names_and_the_mt5_names(no_real_terminal: FakeMT5) -> None:
+    listed = dir(PythonMetaTrader5)
+    assert {"Broker", "connect", "symbol_info", "ORDER_TYPE_BUY"} <= set(listed)
+
+
+def test_a_missing_dependency_of_metatrader5_is_reported_not_hidden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def numpy_missing(name: str) -> None:
+        raise ModuleNotFoundError("No module named 'numpy'", name="numpy")
+
+    monkeypatch.setattr(mt5_session.importlib, "import_module", numpy_missing)
+    with pytest.raises(ModuleNotFoundError, match="numpy"):
+        _ = PythonMetaTrader5.symbol_info

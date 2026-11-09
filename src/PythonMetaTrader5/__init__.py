@@ -9,25 +9,30 @@ match connect(12345678, "password", "MetaQuotes-Demo", magic=1001):
         print(error)
 """
 
-from PythonMetaTrader5.application.batch import BatchFailure
-from PythonMetaTrader5.application.execution import RetryPolicy
-from PythonMetaTrader5.application.trader import Trader
-from PythonMetaTrader5.connection import connect
-from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
-from PythonMetaTrader5.domain.market import (
-    PendingKind,
-    PendingOrder,
-    Position,
-    Tick,
-    TradeReceipt,
-)
-from PythonMetaTrader5.domain.orders import Side
-from PythonMetaTrader5.domain.stops import Stop, StopKind
-from PythonMetaTrader5.legacy import mt5_namespace
-from PythonMetaTrader5.legacy.broker import Broker
-from PythonMetaTrader5.result import Err, Ok, Result
+from typing import Any
 
-__all__ = [
+# `X as X`: explicit re-exports, because __all__ is computed (see __getattr__).
+from PythonMetaTrader5.application.batch import BatchFailure as BatchFailure
+from PythonMetaTrader5.application.execution import RetryPolicy as RetryPolicy
+from PythonMetaTrader5.application.trader import Trader as Trader
+from PythonMetaTrader5.connection import connect as connect
+from PythonMetaTrader5.domain.errors import ErrorKind as ErrorKind
+from PythonMetaTrader5.domain.errors import TradeError as TradeError
+from PythonMetaTrader5.domain.market import PendingKind as PendingKind
+from PythonMetaTrader5.domain.market import PendingOrder as PendingOrder
+from PythonMetaTrader5.domain.market import Position as Position
+from PythonMetaTrader5.domain.market import Tick as Tick
+from PythonMetaTrader5.domain.market import TradeReceipt as TradeReceipt
+from PythonMetaTrader5.domain.orders import Side as Side
+from PythonMetaTrader5.domain.stops import Stop as Stop
+from PythonMetaTrader5.domain.stops import StopKind as StopKind
+from PythonMetaTrader5.legacy import mt5_namespace as _mt5_namespace
+from PythonMetaTrader5.legacy.broker import Broker as Broker
+from PythonMetaTrader5.result import Err as Err
+from PythonMetaTrader5.result import Ok as Ok
+from PythonMetaTrader5.result import Result as Result
+
+_OWN_NAMES = (
     "BatchFailure",
     "Broker",
     "Err",
@@ -46,12 +51,18 @@ __all__ = [
     "TradeReceipt",
     "Trader",
     "connect",
-]
+)
 
-# 2.x re-exported the whole MetaTrader5 namespace, and its README relied on it
-# (`symbol_info("EURUSD")` after a star import). Kept for those scripts rather
-# than breaking them on upgrade (ADR 0010); our own names win a collision.
-_reexported = mt5_namespace.public_names(mt5_namespace.load(), taken=set(globals()))
-globals().update(_reexported)
-__all__ += sorted(_reexported)  # noqa: PLE0605 - extended at import time on purpose
-del _reexported
+
+def __getattr__(name: str) -> Any:
+    # 2.x re-exported the whole MetaTrader5 namespace and its README relied on it
+    # (`symbol_info("EURUSD")` after a star import), so those names resolve here,
+    # lazily (ADR 0010). A star import asks for __all__ through this hook too.
+    # Names defined in this module always win, e.g. our Tick over MT5's struct.
+    if name == "__all__":
+        return [*_OWN_NAMES, *_mt5_namespace.public_names(taken=set(globals()))]
+    return _mt5_namespace.resolve(name, taken=set(globals()))
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *__getattr__("__all__")})

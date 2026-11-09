@@ -46,7 +46,7 @@ def test_fake_rows_only_use_fields_the_real_objects_have() -> None:
 def test_the_2x_star_import_still_brings_the_metatrader5_namespace() -> None:
     namespace: dict[str, Any] = {}
     exec("from PythonMetaTrader5 import *", namespace)  # noqa: S102 - the 2.x idiom itself
-    assert namespace["symbol_info"] is mt5.symbol_info
+    assert namespace["symbol_info"].__wrapped__ is mt5.symbol_info  # locked wrapper
     assert namespace["ORDER_TYPE_BUY"] == mt5.ORDER_TYPE_BUY
     # Our names win a collision: MT5 has its own Tick struct.
     assert namespace["Tick"] is Tick

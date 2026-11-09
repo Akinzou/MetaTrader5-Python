@@ -27,5 +27,7 @@ separate locks would not exclude each other.
   session per process anyway, so no parallelism is lost.
 - A slow call (a login waiting for `timeout_ms`) delays the other threads
   for that long.
-- Calls that user code makes to the `MetaTrader5` module directly are outside
-  the lock. The README says so.
+- Functions re-exported through `PythonMetaTrader5` (ADR 0010) run under the
+  lock too. The lock lives in `adapters/mt5_session.py`. Calls that user code
+  makes to the `MetaTrader5` module directly are outside it, and the README
+  says so.
