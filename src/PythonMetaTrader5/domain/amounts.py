@@ -1,0 +1,33 @@
+"""The one rule for "a positive finite number", shared by Stop and the input checks."""
+
+from __future__ import annotations
+
+import math
+from decimal import Decimal
+from numbers import Real
+
+
+def positive_float(value: object, *, unsigned: bool = False) -> float | None:
+    """``value`` as a positive finite float, or None when it is not one.
+
+    numbers.Real rather than float, so numpy scalars from pandas-based bots
+    pass, plus Decimal (not a Real) for bots that keep money as Decimal. bool
+    is excluded because it is a Real (True == 1) and would trade one lot.
+    NaN Decimals are refused before float(): float(Decimal("sNaN")) raises.
+    ``unsigned`` drops the sign first (a distance), after the NaN check, because
+    abs(Decimal("sNaN")) raises too.
+    """
+    if isinstance(value, bool) or not isinstance(value, (Real, Decimal)):
+        return None
+    if isinstance(value, Decimal) and value.is_nan():
+        return None
+    try:
+        number = abs(float(value)) if unsigned else float(value)
+    except ArithmeticError:
+        # None rather than raising: a number outside float range (10**400, or a
+        # numpy longdouble under np.seterr(over="raise")) is bad input like NaN,
+        # and raising would break the Result boundary. ValueError/TypeError are
+        # not caught: they are bugs in the caller's own type and must keep
+        # their traceback.
+        return None
+    return number if math.isfinite(number) and number > 0 else None

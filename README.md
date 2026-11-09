@@ -1,29 +1,47 @@
-# PythonMetaTrader5  [![PyPI Publish](https://github.com/Akinzou/MetaTrader5-Python/actions/workflows/python-publish.yml/badge.svg)](https://github.com/Akinzou/MetaTrader5-Python/actions/workflows/python-publish.yml)  ![PyPI](https://img.shields.io/pypi/v/pythonmetatrader5)  ![Python](https://img.shields.io/badge/python-3.6%2B-blue?logo=python&logoColor=white)  ![License](https://img.shields.io/badge/license-CC_BY--NC_4.0-lightgrey.svg)  [![PyPI Downloads](https://static.pepy.tech/badge/pythonmetatrader5)](https://pepy.tech/projects/pythonmetatrader5)
+# PythonMetaTrader5
 
-[![Discord](https://img.shields.io/badge/Join_us_on-Discord-5865F2?logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/BARYa55KS8)
+[![CI](https://github.com/Akinzou/MetaTrader5-Python/actions/workflows/ci.yml/badge.svg)](https://github.com/Akinzou/MetaTrader5-Python/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/pythonmetatrader5)](https://pypi.org/project/PythonMetaTrader5/)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)
+![License](https://img.shields.io/badge/license-CC_BY--NC_4.0-lightgrey.svg)
+[![PyPI Downloads](https://static.pepy.tech/badge/pythonmetatrader5)](https://pepy.tech/projects/pythonmetatrader5)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/BARYa55KS8)
 
+A safe, typed trading layer over the official
+[`MetaTrader5`](https://pypi.org/project/MetaTrader5/) Python package.
 
-# MetaTrader5 Python Broker Helper
+Built for bots (webhook executors, signal followers) where a trading call must
+**never hang, never retry blindly, and never fail silently**:
 
-Minimal, production‑ready helper around the official **MetaTrader5** Python package,
-with a single market-entry function and clean handling of **SL/TP as absolute prices or offsets in POINTS**.
-Includes utilities to read positions, close them, and manage pending orders.
+- **Every trading call returns.** Requotes are retried a bounded number of times
+  with a fresh quote; everything else comes back immediately as a typed error.
+  (The deprecated `Broker.login(ToEffect=True)` is the one exception: as in
+  2.x, it keeps trying until the login works.)
+- **No silent defaults.** Values that MT5 would quietly read as something else
+  are refused before sending: `sl=0` ("no stop"), `ticket=0` (possibly "no
+  filter"), `volume=True` (one lot), NaN and infinities.
+- **No double fills.** Timeouts and lost connections are never auto-retried:
+  the order may already be live.
+- **Typed results.** `Ok(receipt)` or `Err(TradeError)` with an `ErrorKind`
+  (`MARKET_CLOSED`, `NO_MONEY`, `INVALID_STOPS`, ...) instead of magic numbers.
+- **Correct prices and lots.** Prices snap to the symbol's tick grid, volumes
+  are checked against min/max/step, the filling mode is chosen from the symbol.
+- **Magic numbers.** Tag your bot's trades and close/cancel only those.
+- **SL/TP as prices or distances in points.**
+- **2.x compatible.** The old `Broker` class still works (deprecated).
 
-> Works with: `MetaTrader5`, `loguru`, `pyautogui`
-
----
-
-## Features
-
-* **Unified Execution Engine**: Single core function to open market positions (`OpenPosition(...)`).
-* **Dynamic Risk Management**: SL/TP can be passed as **absolute prices** or flexible **offsets in POINTS**.
-* **Input Sanitization**: Automatic price normalization to the correct instrument `digits`, preventing API rejection.
-* **Robust Telemetry**: Consistent error handling with common MT5 `retcodes` mapped to readable messages.
-* **Backward Compatibility**: Seamless wrappers for legacy integration (`Buy`, `Sell`, `BuySL`, `SellSL`).
-* **State Helpers**: Efficient querying tools for current market exposure (`GetPositions`, `GetPosition`, `GetPositionsBySymbol`).
-* **Lifecycle Management**: Complete control over active and pending trades (`Close`, `SellLimit`, `BuyLimit`, `CancelOrders`).
-
----
+> One connection per process: the official package keeps a single global
+> terminal session, so a second `connect()` (or its failed login) affects the
+> first. Run one process per account.
+>
+> Thread-safe within the library: every terminal call holds one process-wide
+> lock, so a threaded webhook server can share a `Trader`. The MT5 functions
+> re-exported through `PythonMetaTrader5` hold it for each single call (a pair
+> such as `order_send` + `last_error` is not atomic). Calls you make to the
+> `MetaTrader5` module directly bypass it.
+>
+> Requires Windows with a MetaTrader 5 terminal installed (the official
+> `MetaTrader5` package is Windows-only). Enable **Algo Trading** in the terminal.
 
 ## Installation
 
@@ -31,224 +49,135 @@ Includes utilities to read positions, close them, and manage pending orders.
 pip install PythonMetaTrader5
 ```
 
-> Ensure your MetaTrader 5 terminal is running, logged in, and **Algo Trading** is enabled.
-
----
-
-## Quick Start
+## Quick start
 
 ```python
-from PythonMetaTrader5 import Broker
-import time
+from PythonMetaTrader5 import Err, Ok, Side, Stop, connect
 
-# Login to your account
-broker = Broker(96540048, "PASSWORD", "MetaQuotes-Demo")
-time.sleep(1)  # small grace period after login
+match connect(12345678, "password", "MetaQuotes-Demo", magic=1001):
+    case Err(error):
+        raise SystemExit(f"cannot connect: {error}")
+    case Ok(trader):
+        pass
 
-# Open BUY with SL/TP given as OFFSETS IN POINTS
-r = broker.OpenPosition(
-    "EURUSD", "buy", 0.10,
-    sl=1000, sl_type="offset",   # 1000 points (≈ 100 pips on 5-digit symbol)
-    tp=1500, tp_type="offset"
-)
+with trader:  # shuts the terminal connection down on exit
+    result = trader.open_position(
+        "EURUSD", Side.BUY, 0.10,
+        sl=Stop.points(1000),  # 1000 points below the entry price
+        tp=1.12500,            # a plain float is an absolute price
+        comment="webhook #42",
+    )
+    match result:
+        case Ok(receipt):
+            print("filled at", receipt.price, "deal", receipt.deal)
+        case Err(error):
+            print("not opened:", error.kind, error.message)
 
-# Read positions for a symbol
-xau_positions = broker.GetPositionsBySymbol("XAUUSD", as_dict=True)
-
-# Close all positions on a symbol
-broker.Close("EURUSD")
-
-# Cancel pending limit orders on a symbol
-broker.CancelOrders("EURUSD")
-
-# Graceful shutdown
-broker.Disconnect()
+    trader.close_positions("EURUSD", magic=1001)  # only this bot's positions
 ```
 
----
+## API
 
-## SL/TP Semantics (Important)
+`connect(login, password, server, *, path=None, timeout_ms=60000, magic=0,
+deviation=10, retry=None) -> Result[Trader, TradeError]`
 
-- `sl_type` / `tp_type`:
-  - `"absolute"` → you pass **absolute prices** (e.g., `1.23456`)
-  - `"offset"`   → you pass **offsets in POINTS** (converted using `symbol_info(symbol).point`)
+`login` must be a positive integer or a string of ASCII digits; `True`,
+`12345678.9` and similar values are rejected rather than coerced.
 
-- Offsets are applied from the **current tick price** (`ask` for BUY, `bid` for SELL):
-  - BUY : `SL = ask - |sl|*point`, `TP = ask + |tp|*point`
-  - SELL: `SL = bid + |sl|*point`, `TP = bid - |tp|*point`
+| `Trader` method | Returns |
+|---|---|
+| `open_position(symbol, side, volume, *, sl=None, tp=None, price=None, comment=None)` | `Result[TradeReceipt, TradeError]` |
+| `place_limit_order(symbol, side, volume, price, *, sl=None, tp=None, comment=None)` | `Result[TradeReceipt, TradeError]` |
+| `close_positions(symbol=None, *, ticket=None, magic=None, comment=None)` | `Result[list[TradeReceipt], BatchFailure]` |
+| `cancel_pending_orders(symbol=None, *, magic=None, kind=None)` | `Result[list[TradeReceipt], BatchFailure]` |
+| `positions(symbol=None, *, ticket=None, magic=None)` | `Result[list[Position], TradeError]` |
+| `pending_orders(symbol=None, *, magic=None, kind=None)` | `Result[list[PendingOrder], TradeError]` |
+| `shutdown()` | `None` |
 
-- All calculated prices (including absolute inputs) are normalized to the instrument `digits`.
+- `side`: `Side.BUY` / `Side.SELL`, or the strings `"buy"`, `"sell"`, `"long"`, `"short"`.
+- `sl` / `tp`: a float is an **absolute price**; `Stop.points(n)` is a distance
+  of `n` points from the entry price (`Stop.at_price(p)` is the explicit form).
+  For limit orders the distance is measured from the limit price, and for a
+  market order with an explicit `price` from that price. A float stop that is
+  zero, negative or not finite is rejected (`INVALID_STOPS`); pass `None` for
+  no stop. `Stop.points()` / `Stop.at_price()` raise `ValueError` unless the
+  value is a positive finite number (bool and str included; a zero stop would
+  mean "no stop" to MT5); the sign of a points distance is ignored. A `kind`
+  that is not a `StopKind` raises `TypeError`. A stop that resolves outside
+  the tick grid's range, or to zero or below, is `INVALID_STOPS` when the
+  order is built. For a value that may be bad at runtime, such as
+  an ATR that is NaN during warm-up, use
+  `Stop.parse(value, StopKind.POINTS)`, which returns `Ok(stop)` /
+  `Err(INVALID_STOPS)`.
+- Amounts may be `int`, `float`, `Decimal` or numpy scalars; `bool` and strings
+  are refused (the deprecated `Broker` still converts numeric strings).
+- `price` (market orders): send at this price once instead of the live quote.
+- `comment`: at most 31 characters (the terminal's limit). Longer comments are
+  rejected, not truncated.
+- **`close_positions()` and `cancel_pending_orders()` without arguments act on
+  the whole account**, including manual trades. A bot should always pass its
+  `magic` (and a symbol); an empty string `""` is rejected.
+- `BatchFailure.errors` names every position/order that failed
+  (`TradeError.ticket`). `BatchFailure.succeeded` holds the receipts of the
+  ones that worked; their `order` / `deal` are the IDs of the closing deal, not
+  the position ticket.
+- `ticket` must be a positive integer; `0`, `True` or `"7"` are rejected.
 
-> If you get `Wrong SL (10016)`, check `symbol_info(symbol).stops_level` and multiply by `point` to know the minimal allowed distance.
+### Errors
 
----
+`TradeError(kind, message, retcode=None, receipt=None, ticket=None)`. The
+`receipt` carries the broker's raw answer when there was one. Retry policy:
 
-## API Reference
-
-### `class Broker`
-
-#### `__init__(self, log, password, server)`
-Initialize MT5, attempt login, and print account info on success.
-
-- **log**: login number (int or str)
-- **password**: account password (str)
-- **server**: broker server name (str)
-
-#### `login(self, ToEffect=False) -> bool`
-Retrying login loop. If `ToEffect` is `False`, returns immediately on failure.
-
----
-
-### Market Entry
-
-#### `OpenPosition(self, symbol, side, volume, *, sl=None, tp=None, price=None, comment=None, ticket=None, sl_type="absolute", tp_type="absolute")`
-Open a market position.
-
-- **symbol**: e.g., `"EURUSD"`
-- **side**: `"buy" | "sell" | "long" | "short"`
-- **volume**: lot size (float)
-- **sl**/**tp**: number (see `sl_type`/`tp_type`)
-- **sl_type**/**tp_type**: `"absolute"` (prices) or `"offset"` (**POINTS**)
-- **price**: optional direct price; if `None`, uses current tick (ask/bid) and retries on transient errors
-- **comment**: optional MT5 order comment
-- **ticket**: existing position id if needed (rarely used for market entry)
-
-**Returns**: result of `order_send` (MT5 `TradeResult`)
-
-**Examples**:
-```python
-# Absolute prices
-broker.OpenPosition("XAUUSD", "sell", 0.10, sl=2400.0, tp=2380.0, sl_type="absolute", tp_type="absolute")
-
-# Offsets in POINTS
-broker.OpenPosition("EURUSD", "buy", 0.10, sl=1000, tp=1500, sl_type="offset", tp_type="offset")
-```
-
----
-
-### Backward‑Compat Wrappers
-
-#### `Buy(self, symbol, volume, price=None, *, comment=None, ticket=None)`
-Market BUY via `OpenPosition`.
-
-#### `Sell(self, symbol, volume, price=None, *, comment=None, ticket=None)`
-Market SELL via `OpenPosition`.
-
-#### `BuySL(self, symbol, volume, sl, price=None, *, comment=None, ticket=None, sl_type="absolute")`
-BUY with SL specified (absolute or offset in points).
-
-#### `SellSL(self, symbol, volume, sl, price=None, *, comment=None, ticket=None, sl_type="absolute")`
-SELL with SL specified (absolute or offset in points).
-
----
-
-### Close & Pending Orders
-
-#### `Close(self, symbol, *, comment=None, ticket=None) -> bool`
-Iteratively closes all positions for a **ticket** or for a **symbol** (same filtering semantics as `positions_get`). Returns `False` if nothing to close.
-
-#### `SellLimit(self, symbol, volume, stoplimit, price=None, comment=None, ticket=None)`
-Create a SELL LIMIT order at `stoplimit`. If current `bid >= stoplimit`, executes a market SELL immediately for consistency.
-
-#### `BuyLimit(self, symbol, volume, stoplimit, price=None, comment=None, ticket=None)`
-Create a BUY LIMIT order at `stoplimit`. If current `ask <= stoplimit`, executes a market BUY immediately.
-
-#### `CancelOrders(self, symbol)`
-Cancel all BUY/SELL LIMIT pending orders on the given symbol.
-
-#### `Disconnect(self)`
-Shutdown MT5 connection.
-
----
-
-### Positions Helpers
-
-#### `GetPositionsBySymbol(self, symbol: str, as_dict: bool = False) -> list`
-Return all open positions for a symbol. If `as_dict=True`, returns a list of plain dictionaries (ready for JSON/GUI).
-
-#### `GetPositions(self, symbol=None, *, ticket=None, as_dict: bool = False) -> list`
-Return positions with the same filter style as `Close()`:
-- `ticket` provided → that single position
-- else `symbol` provided → all for that symbol
-- else → all positions
-
-#### `GetPosition(self, symbol=None, *, ticket=None, as_dict: bool = False)`
-Return the first matching position (or `None`). Useful when at most one position is expected.
-
-**Example**:
-```python
-p = broker.GetPosition(symbol="XAUUSD", as_dict=True)
-if p:
-    print("Ticket:", p["ticket"], "Type:", "BUY" if p["type"] == 0 else "SELL", "Profit:", p["profit"])
-```
-
----
-
-## Error Handling & Retcodes
-
-- Known retcodes are mapped in `RetCodes`:
-  - `10027`: Enable Algo Trading in MetaTrader5 app
-  - `10018`: Market closed
-  - `10016`: Wrong SL
-
-- For `10027`, a `Ctrl+E` hotkey is issued via `pyautogui` to toggle Algo Trading.
-- For `10016`, retries are **not** attempted (invalid SL/TP).
-
----
-
-## Advanced Examples
+| Server answer | What happens |
+|---|---|
+| market deal (entry or close): done | `Ok(receipt)` |
+| pending order: placed or done | `Ok(receipt)` |
+| market deal: partial fill | `PARTIAL_FILL` with the receipt; part of the deal exists, never re-sent |
+| market deal: placed (queued, not executed) | `OUTCOME_UNKNOWN` with the receipt, never re-sent |
+| requote, price changed, no quotes, too many requests | retried with a fresh quote, up to `RetryPolicy.attempts` (default 3, 0.5 s apart), then `RETRIES_EXHAUSTED` |
+| timeout, no connection, or `order_send` lost in IPC | `OUTCOME_UNKNOWN`, never retried: check `positions()` first |
+| anything else | the matching `ErrorKind`, returned at once |
+| refused before sending: the terminal's symbol data cannot price an order (point 0, NaN tick size, volume step 0, ...) | `BROKEN_SYMBOL_DATA`, the same on every resend: escalate, don't retry. Closing still works on such symbols |
 
 ```python
-# 1) BUY with SL absolute price, TP as offset in points
-broker.OpenPosition(
-    "US500", "buy", 1.0,
-    sl=5780.0, sl_type="absolute",
-    tp=200,    tp_type="offset"
-)
+from PythonMetaTrader5 import RetryPolicy, connect
 
-# 2) SELL with both offsets in points
-broker.OpenPosition(
-    "EURUSD", "sell", 0.2,
-    sl=800, tp=1200,
-    sl_type="offset", tp_type="offset"
-)
-
-# 3) Get all positions as dicts and filter by profit
-pos = broker.GetPositions(as_dict=True)
-winners = [p for p in pos if p["profit"] > 0]
-
-# 4) Close by ticket
-p = broker.GetPosition(symbol="XAUUSD")
-if p:
-    broker.Close("XAUUSD", ticket=p.ticket)
-
-# 5) Pending orders
-broker.BuyLimit("EURUSD", 0.10, stoplimit=1.10000)
-broker.SellLimit("EURUSD", 0.10, stoplimit=1.12000)
-broker.CancelOrders("EURUSD")
+connect(..., retry=RetryPolicy(attempts=5, delay_seconds=0.2))
 ```
 
----
+### Logging
 
-## Notes
+The library logs through the standard `logging` module under the
+`PythonMetaTrader5` logger and never configures handlers itself. Without any
+logging configuration, warnings and errors still reach stderr.
 
-- Ensure the symbol is visible/active in MT5 Market Watch.
-- Check `stops_level`/`freeze_level` on your broker if SL/TP are rejected:
-  ```python
-  info = symbol_info("EURUSD")
-  print(info.point, info.digits, info.stops_level, info.freeze_level, info.volume_min, info.volume_step)
-  ```
-- `volume` must respect broker `volume_min`/`volume_step`.
+## Migrating from 2.x
 
----
+`from PythonMetaTrader5 import Broker` keeps working and emits a
+`DeprecationWarning`. `from PythonMetaTrader5 import *` still brings in the
+`MetaTrader5` functions and constants, as in 2.x. Several 2.x behaviours were unsafe and changed: see
+[MIGRATION.md](MIGRATION.md).
+
+## Development
+
+```bash
+python -m venv .venv && .venv\Scripts\activate
+pip install -e ".[dev]"
+ruff check src tests scripts && ruff format --check src tests scripts
+mypy
+pytest --cov
+```
+
+`tests/contract` compares the unit-test fakes with the installed `MetaTrader5`
+package and is skipped where it is not installed (anywhere but Windows).
+Integration tests trade on a **demo** account and are skipped unless
+`MT5_LOGIN`, `MT5_PASSWORD` and `MT5_SERVER` are set (they refuse to run on a
+live account): `pytest -m integration`.
+
+Architecture and decisions: [docs/architecture.md](docs/architecture.md),
+[docs/adr](docs/adr).
 
 ## License
 
-CC-BY-NC 4.0
-
-
-
-
-
-
-
+[CC BY-NC 4.0](LICENSE). Trading carries risk; this software comes without any
+warranty.
