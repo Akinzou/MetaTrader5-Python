@@ -8,40 +8,33 @@ here instead of being passed on.
 
 from __future__ import annotations
 
-import math
-from decimal import Decimal
-from numbers import Integral, Real
+from numbers import Integral
 
+from PythonMetaTrader5.domain.amounts import positive_float
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
-from PythonMetaTrader5.domain.stops import Stop, StopKind
+from PythonMetaTrader5.domain.stops import Stop
 from PythonMetaTrader5.result import Err, Ok, Result
 
 
 def positive_number(value: object, kind: ErrorKind, what: str) -> Result[float, TradeError]:
-    # numbers.Real rather than float so numpy scalars from pandas-based bots pass,
-    # plus Decimal (not a Real) for bots that keep money as Decimal. bool is
-    # excluded explicitly because it is a Real (True == 1).
-    if isinstance(value, bool) or not isinstance(value, (Real, Decimal)):
-        return Err(TradeError(kind, f"{what} must be a number, got {value!r}"))
-    number = float(value)
-    if not math.isfinite(number) or number <= 0:
+    number = positive_float(value)
+    if number is None:
         return Err(TradeError(kind, f"{what} must be a positive finite number, got {value!r}"))
     return Ok(number)
 
 
 def stop_input(value: object, what: str) -> Result[Stop | None, TradeError]:
     """``None`` means no stop; a float is a price; zero is refused, never "no stop"."""
-    if value is None:
-        return Ok(None)
-    kind = value.kind if isinstance(value, Stop) else StopKind.PRICE
-    raw = value.value if isinstance(value, Stop) else value
-    if kind is StopKind.POINTS and isinstance(raw, (Real, Decimal)) and not isinstance(raw, bool):
-        raw = abs(raw)  # a points distance has no sign (see Stop._resolve)
-    checked = positive_number(raw, ErrorKind.INVALID_STOPS, what)
-    if isinstance(checked, Err):
-        return checked
-    # Rebuilt from the checked float, so later arithmetic never sees a Decimal or str.
-    return Ok(Stop(checked.value, kind))
+    if value is None or isinstance(value, Stop):
+        return Ok(value)  # a Stop validated itself when it was built
+    number = positive_float(value)
+    if number is None:
+        return Err(
+            TradeError(
+                ErrorKind.INVALID_STOPS, f"{what} must be a positive finite price, got {value!r}"
+            )
+        )
+    return Ok(Stop.at_price(number))
 
 
 def ticket_filter(ticket: object) -> Result[int | None, TradeError]:

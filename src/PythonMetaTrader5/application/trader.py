@@ -9,8 +9,8 @@ from PythonMetaTrader5.application.batch import BatchFailure, run_batch, with_ma
 from PythonMetaTrader5.application.entries import StopInput, validate_entry
 from PythonMetaTrader5.application.execution import RetryPolicy, execute
 from PythonMetaTrader5.application.ports import Clock, Terminal
-from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
-from PythonMetaTrader5.domain.inputs import positive_number, symbol_filter, ticket_filter
+from PythonMetaTrader5.domain.errors import TradeError
+from PythonMetaTrader5.domain.inputs import symbol_filter, ticket_filter
 from PythonMetaTrader5.domain.market import PendingKind, PendingOrder, Position, TradeReceipt
 from PythonMetaTrader5.domain.orders import Side, validate_comment
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
@@ -53,24 +53,21 @@ class Trader:
         fresh quote. An explicit ``price`` is sent once: re-sending the same price
         after a requote cannot succeed.
         """
-        # Checked before validate_entry so a bad price never costs a symbol lookup.
-        fixed = None if price is None else positive_number(price, ErrorKind.INVALID_PRICE, "price")
-        if isinstance(fixed, Err):
-            return fixed
-        entry = validate_entry(self._terminal, symbol, side, volume, comment=comment, sl=sl, tp=tp)
+        entry = validate_entry(
+            self._terminal, symbol, side, volume, comment=comment, sl=sl, tp=tp, price=price
+        )
         if isinstance(entry, Err):
             return entry
         e = entry.value
 
         def build() -> Result[OrderRequest | CancelRequest, TradeError]:
-            if fixed is not None:
-                reference = e.spec.normalize_price(fixed.value)
-            else:
+            quote = None
+            if e.price is None:
                 tick = self._terminal.tick(symbol)
                 if isinstance(tick, Err):
                     return tick
-                reference = tick.value.entry_price(e.side)
-            return e.request(reference, pending=None, deviation=self._deviation, magic=self._magic)
+                quote = tick.value.entry_price(e.side)
+            return e.request(quote, pending=None, deviation=self._deviation, magic=self._magic)
 
         policy = self._retry if price is None else replace(self._retry, attempts=1)
         return execute(self._terminal, self._clock, build, policy)
@@ -91,18 +88,21 @@ class Trader:
         A limit on the wrong side of the market is refused by the server
         (INVALID_PRICE) rather than converted into a market order.
         """
-        level = positive_number(price, ErrorKind.INVALID_PRICE, "price")
-        if isinstance(level, Err):
-            return level
-        entry = validate_entry(self._terminal, symbol, side, volume, comment=comment, sl=sl, tp=tp)
+        entry = validate_entry(
+            self._terminal,
+            symbol,
+            side,
+            volume,
+            comment=comment,
+            sl=sl,
+            tp=tp,
+            price=price,
+            price_required=True,
+        )
         if isinstance(entry, Err):
             return entry
-        e = entry.value
-        request = e.request(
-            e.spec.normalize_price(level.value),
-            pending=PendingKind.LIMIT,
-            deviation=self._deviation,
-            magic=self._magic,
+        request = entry.value.request(
+            pending=PendingKind.LIMIT, deviation=self._deviation, magic=self._magic
         )
         if isinstance(request, Err):
             return request

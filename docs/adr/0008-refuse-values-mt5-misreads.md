@@ -25,9 +25,18 @@ Refuse these values at the application boundary, before any terminal call:
   `numbers.Real` is used rather than `float`, so numpy scalars from
   pandas-based bots still pass. `Decimal`, which is not a `Real`, is accepted
   explicitly.
-- `Stop.at_price()` and `Stop.points()` store their argument unconverted. If
-  they called `float()`, `True` would become `1.0` before the check could see
-  it.
+- `Stop` enforces the same rule on itself in `__post_init__`: it stores a
+  positive finite float, and a points distance drops its sign. It raises
+  `ValueError` on 0, bool, NaN, infinities and strings, because such a `Stop`
+  cannot exist. Plain floats passed as `sl` / `tp` are checked without raising
+  (`stop_input`) and come back as `INVALID_STOPS`. The number rule itself lives
+  once, in `domain/amounts.py`. An earlier draft stored the raw value and
+  checked it only in `stop_input`. We dropped it because it left `Stop`
+  without invariants, `Stop.points(-1000) != Stop.points(1000)`, and every
+  other consumer of `Stop` would have needed its own check.
+- The price is checked inside `validate_entry`, before the symbol lookup and
+  after the side, comment and stops. A bad price never costs a terminal round
+  trip, and a bad side is still the first error reported.
 - The legacy `BuyLimit` / `SellLimit` check the level before comparing it
   with the quote. Otherwise a level of 0 would "cross" the market and be sent
   as a market order.
@@ -45,5 +54,7 @@ well.
 - 2.x scripts that passed `sl=0` to mean "no stop" now get `None` and an
   error log instead of a trade. MIGRATION.md says so, and `None` is the way
   to ask for no stop.
-- An honest zero-distance stop (`Stop.points(0)`) is refused before sending
-  instead of being rejected by the server with 10016.
+- `Stop.points(0)` raises `ValueError` when it is built, instead of the server
+  rejecting it with 10016.
+- Signalling-NaN Decimals are refused without raising: `float(Decimal("sNaN"))`
+  raises, so the NaN check runs first.

@@ -11,15 +11,17 @@ import pytest
 
 from PythonMetaTrader5 import Broker, Stop
 from PythonMetaTrader5.adapters.mt5_terminal import MetaTrader5Terminal
+from PythonMetaTrader5.application.entries import Entry
 from PythonMetaTrader5.application.trader import Trader
 from PythonMetaTrader5.domain.errors import ErrorKind
+from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.result import Err, Ok
 
 from .fake_mt5 import FakeMT5, raw_position
 from .fakes import EURUSD, FakeClock, FakeTerminal, make_position
 
-NOT_A_STOP = [0, 0.0, -1.1, math.nan, math.inf, True, Stop.points(0), Stop.at_price(0)]
-NOT_A_NUMBER = [math.nan, math.inf, -math.inf, True, "0.1", None]
+NOT_A_STOP = [0, 0.0, -1.1, math.nan, math.inf, True, Decimal("sNaN"), "1.1"]
+NOT_A_NUMBER = [math.nan, math.inf, -math.inf, True, "0.1", Decimal("sNaN"), Decimal("NaN"), None]
 
 
 @pytest.mark.parametrize("stop", NOT_A_STOP)
@@ -151,17 +153,29 @@ def test_legacy_limit_with_a_bad_level_sends_nothing(terminal: FakeTerminal, lev
     assert terminal.sent == []
 
 
-@pytest.mark.parametrize("sl_type", ["absolute", "offset"])
-def test_a_bool_stop_is_refused_however_it_is_wrapped(
-    trader: Trader, terminal: FakeTerminal, sl_type: str
+@pytest.mark.parametrize("value", [0, -1.1, True, math.nan, math.inf, Decimal("sNaN"), "1.1"])
+@pytest.mark.parametrize("factory", [Stop.at_price, Stop.points])
+def test_a_stop_cannot_be_built_from_a_value_mt5_would_misread(
+    factory: object, value: object
 ) -> None:
-    for stop in (Stop.at_price(True), Stop.points(True)):  # type: ignore[arg-type]
-        result = trader.open_position("EURUSD", "buy", 0.1, sl=stop)
-        assert isinstance(result, Err)
-        assert result.error.kind is ErrorKind.INVALID_STOPS
+    if factory == Stop.points and isinstance(value, float) and value < 0:
+        pytest.skip("a negative distance is a distance")
+    with pytest.raises(ValueError, match="positive finite"):
+        factory(value)  # type: ignore[operator]
+
+
+def test_a_stop_holds_a_float_and_a_distance_has_no_sign() -> None:
+    assert Stop.points(-1000) == Stop.points(1000)
+    assert Stop.at_price(Decimal("1.1")).value == 1.1
+    assert isinstance(Stop.points(Decimal("100")).value, float)
+
+
+@pytest.mark.parametrize("sl_type", ["absolute", "offset"])
+def test_legacy_refuses_a_bool_stop(terminal: FakeTerminal, sl_type: str) -> None:
     with pytest.warns(DeprecationWarning, match="connect"):
         broker = Broker(1, "pw", "Demo", terminal=terminal, clock=FakeClock())
     assert broker.OpenPosition("EURUSD", "buy", 0.1, sl=True, sl_type=sl_type) is None  # type: ignore[arg-type]
+    assert broker.OpenPosition("EURUSD", "buy", 0.1, sl=0, sl_type=sl_type) is None
     assert terminal.sent == []
 
 
@@ -175,6 +189,23 @@ def test_decimal_amounts_are_accepted(trader: Trader, terminal: FakeTerminal) ->
 def test_a_bad_price_is_refused_before_any_symbol_lookup(
     trader: Trader, terminal: FakeTerminal
 ) -> None:
-    trader.open_position("EURUSD", "buy", 0.1, price=math.nan)
-    trader.place_limit_order("EURUSD", "buy", 0.1, 0)
+    for result in (
+        trader.open_position("EURUSD", "buy", 0.1, price=math.nan),
+        trader.place_limit_order("EURUSD", "buy", 0.1, 0),
+    ):
+        assert isinstance(result, Err)
+        assert result.error.kind is ErrorKind.INVALID_PRICE
     assert terminal.symbol_lookups == []
+
+
+def test_a_bad_side_is_still_reported_before_a_bad_price(trader: Trader) -> None:
+    result = trader.open_position("EURUSD", "hold", 0.1, price=math.nan)
+    assert isinstance(result, Err)
+    assert result.error.kind is ErrorKind.INVALID_ARGUMENT
+
+
+def test_an_entry_without_a_price_or_a_quote_sends_nothing() -> None:
+    entry = Entry(EURUSD, Side.BUY, 0.1, "", None, None, None)
+    result = entry.request(pending=None, deviation=10, magic=0)
+    assert isinstance(result, Err)
+    assert result.error.kind is ErrorKind.NO_PRICE

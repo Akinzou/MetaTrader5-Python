@@ -15,6 +15,23 @@ from PythonMetaTrader5.domain.orders import Side
 # MT5 POSITION_TYPE_BUY / POSITION_TYPE_SELL: 2.x callers compare `p.type == 0`.
 _POSITION_TYPE = {Side.BUY: 0, Side.SELL: 1}
 
+# The keys 2.x `as_dict=True` built by hand. A projection of as_object() rather
+# than a second mapping, so the two 2.x shapes cannot drift apart.
+_V2_DICT_KEYS = (
+    "ticket",
+    "symbol",
+    "type",
+    "volume",
+    "price_open",
+    "sl",
+    "tp",
+    "price_current",
+    "profit",
+    "time",
+    "magic",
+    "comment",
+)
+
 
 class LegacyPosition(NamedTuple):
     """Field-for-field and in order the same as MetaTrader5.TradePosition."""
@@ -83,21 +100,9 @@ def as_object(p: Position) -> LegacyPosition:
 
 
 def as_dict(p: Position) -> dict[str, Any]:
+    row = as_object(p)._asdict()
     # 2.x `as_dict=True` used None for a missing stop, unlike the raw objects.
-    return {
-        "ticket": p.ticket,
-        "symbol": p.symbol,
-        "type": _POSITION_TYPE[p.side],
-        "volume": p.volume,
-        "price_open": p.price_open,
-        "sl": p.sl,
-        "tp": p.tp,
-        "price_current": p.price_current,
-        "profit": p.profit,
-        "time": p.time,
-        "magic": p.magic,
-        "comment": p.comment,
-    }
+    return {key: row[key] for key in _V2_DICT_KEYS} | {"sl": p.sl, "tp": p.tp}
 
 
 def as_receipt(receipt: TradeReceipt | None) -> LegacyReceipt | None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from PythonMetaTrader5.domain.amounts import positive_float
 from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.domain.symbol import SymbolSpec
 
@@ -19,9 +20,19 @@ class Stop:
     value: float
     kind: StopKind
 
-    # The factories store the value unconverted: float(True) == 1.0 would hide a
-    # stray bool from the input checks (domain/inputs.stop_input), which refuse
-    # anything that is not a positive finite number.
+    def __post_init__(self) -> None:
+        # The invariant lives here, so every Stop is valid wherever it is built.
+        # A points distance drops its sign: direction comes from the trade side,
+        # so `-1000` and `1000` both mean "1000 points on the losing side".
+        number = positive_float(self.value, unsigned=self.kind is StopKind.POINTS)
+        if number is None:
+            # Raised, not returned: a Stop of 0 cannot exist (MT5 would read it as
+            # "no stop"), and bool/NaN/str are caller bugs. Plain floats passed as
+            # sl/tp are checked without raising, by domain.inputs.stop_input.
+            raise ValueError(
+                f"{self.kind.value} stop must be a positive finite number, got {self.value!r}"
+            )
+        object.__setattr__(self, "value", number)
 
     @classmethod
     def at_price(cls, price: float) -> Stop:
@@ -40,7 +51,4 @@ class Stop:
     def _resolve(self, direction: int, reference: float, spec: SymbolSpec) -> float:
         if self.kind is StopKind.PRICE:
             return spec.normalize_price(self.value)
-        # The sign is ignored on purpose: direction comes from the trade side, so
-        # `-1000` and `1000` both mean "1000 points on the losing side".
-        distance = abs(self.value)
-        return spec.normalize_price(reference + direction * distance * spec.point)
+        return spec.normalize_price(reference + direction * self.value * spec.point)

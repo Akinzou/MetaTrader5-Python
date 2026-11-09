@@ -98,6 +98,10 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
   For limit orders the distance is measured from the limit price, and for a
   market order with an explicit `price` from that price. Zero, negative and
   non-finite stops are rejected (`INVALID_STOPS`); pass `None` for no stop.
+  `Stop.points()` / `Stop.at_price()` raise `ValueError` on such values, since
+  a zero stop would mean "no stop" to MT5.
+- Amounts may be `int`, `float`, `Decimal` or numpy scalars; `bool` and strings
+  are refused (the deprecated `Broker` still converts numeric strings).
 - `price` (market orders): send at this price once instead of the live quote.
 - `comment`: at most 31 characters (the terminal's limit). Longer comments are
   rejected, not truncated.

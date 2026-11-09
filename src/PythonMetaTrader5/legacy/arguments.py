@@ -6,6 +6,7 @@ Split out of broker.py (300-line limit); everything here is pure.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from PythonMetaTrader5.domain.stops import Stop
@@ -26,15 +27,22 @@ def number(value: Any) -> Any:
 def legacy_stop(value: Any, kind: str) -> Result[Stop | None, str]:
     if value is None:
         return Ok(None)
+    build: Callable[[Any], Stop]
     match (kind or "absolute").lower():
         case "absolute":
-            return Ok(Stop.at_price(value))
+            build = Stop.at_price
         case "offset":
-            return Ok(Stop.points(value))
+            build = Stop.points
         case other:
             # 2.x opened the position with neither SL nor TP here.
             log.error("invalid stop type %r (use 'absolute' or 'offset')", other)
             return Err(other)
+    try:
+        return Ok(build(value))
+    except ValueError as error:
+        # sl=0 meant "no stop" to MT5 in 2.x; refusing it beats an unprotected entry.
+        log.error("%s", error)
+        return Err(str(error))
 
 
 def no_ticket(ticket: int | None) -> bool:
