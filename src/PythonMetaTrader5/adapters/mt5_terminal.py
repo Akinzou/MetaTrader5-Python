@@ -48,6 +48,13 @@ class MetaTrader5Terminal:
             Filling.IOC: mt5.ORDER_FILLING_IOC,
             Filling.RETURN: mt5.ORDER_FILLING_RETURN,
         }
+        # Every constant is read here, not at first use, so building the adapter
+        # against a new MetaTrader5 release fails at once if one was renamed.
+        self._deal = mt5.TRADE_ACTION_DEAL
+        self._pending = mt5.TRADE_ACTION_PENDING
+        self._remove = mt5.TRADE_ACTION_REMOVE
+        self._good_till_cancel = mt5.ORDER_TIME_GTC
+        self._position_buy = mt5.POSITION_TYPE_BUY
 
     @classmethod
     def load(cls) -> Result[MetaTrader5Terminal, TradeError]:
@@ -179,13 +186,10 @@ class MetaTrader5Terminal:
     # ------------------------------------------------------------------ helpers
 
     def _payload(self, request: OrderRequest | CancelRequest) -> dict[str, Any]:
-        mt5 = self._mt5
         if isinstance(request, CancelRequest):
-            return {"action": mt5.TRADE_ACTION_REMOVE, "order": request.order}
+            return {"action": self._remove, "order": request.order}
         payload: dict[str, Any] = {
-            "action": mt5.TRADE_ACTION_DEAL
-            if request.pending is None
-            else mt5.TRADE_ACTION_PENDING,
+            "action": self._deal if request.pending is None else self._pending,
             "symbol": request.symbol,
             "volume": request.volume,
             "type": self._order_types[(request.side, request.pending)],
@@ -194,7 +198,7 @@ class MetaTrader5Terminal:
             "magic": request.magic,
             "comment": request.comment,
             "type_filling": self._fillings[request.filling],
-            "type_time": mt5.ORDER_TIME_GTC,
+            "type_time": self._good_till_cancel,
         }
         optional = {"sl": request.sl, "tp": request.tp, "position": request.position}
         payload.update({key: value for key, value in optional.items() if value is not None})
@@ -204,7 +208,7 @@ class MetaTrader5Terminal:
         return Position(
             ticket=int(p.ticket),
             symbol=str(p.symbol),
-            side=Side.BUY if p.type == self._mt5.POSITION_TYPE_BUY else Side.SELL,
+            side=Side.BUY if p.type == self._position_buy else Side.SELL,
             volume=float(p.volume),
             price_open=float(p.price_open),
             # MT5 encodes "no stop" as 0.0, which is also a (useless) price.

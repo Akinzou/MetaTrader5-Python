@@ -83,6 +83,9 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
 - `price` (market orders): send at this price once instead of the live quote.
 - `comment`: at most 31 characters (the terminal's limit). Longer comments are
   rejected, not truncated.
+- **`close_positions()` and `cancel_pending_orders()` without arguments act on
+  the whole account**, including manual trades. A bot should always pass its
+  `magic` (and a symbol); an empty string `""` is rejected.
 - `BatchFailure.succeeded` / `.errors` tell exactly which tickets closed and
   which did not; each `TradeError.ticket` names the position/order.
 

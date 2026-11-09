@@ -117,7 +117,11 @@ class Trader:
         magic: int | None = None,
         comment: str | None = None,
     ) -> Result[list[TradeReceipt], BatchFailure]:
-        """Close matching positions; ``ticket`` takes precedence over ``symbol``."""
+        """Close matching positions; ``ticket`` takes precedence over ``symbol``.
+
+        With neither ``symbol``, ``ticket`` nor ``magic`` this closes EVERY position
+        on the account, manual ones included. Pass ``magic`` to touch only your own.
+        """
         text = validate_comment(comment)
         if isinstance(text, Err):
             return Err(BatchFailure((), (text.error,)))
