@@ -6,19 +6,16 @@ types and the shape of its result objects.
 
 from __future__ import annotations
 
+import functools
 import importlib
-from typing import Any
+import threading
+from collections.abc import Callable
+from typing import Any, ParamSpec, TypeVar
 
+from PythonMetaTrader5.adapters import mt5_mapping
 from PythonMetaTrader5.application.ports import Credentials
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
-from PythonMetaTrader5.domain.market import (
-    PendingKind,
-    PendingOrder,
-    Position,
-    Tick,
-    TradeReceipt,
-)
-from PythonMetaTrader5.domain.orders import Side
+from PythonMetaTrader5.domain.market import PendingOrder, Position, Tick, TradeReceipt
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
 from PythonMetaTrader5.domain.symbol import Filling, SymbolSpec
 from PythonMetaTrader5.result import Err, Ok, Result
@@ -37,12 +34,30 @@ _NOT_SENT_CODES = (
     "RES_E_INTERNAL_FAIL_CONNECT",
 )
 
+# last_error() is process-global, so a call and the error read that explains it
+# must not interleave with another thread's call. The lock is module-level, not
+# per adapter: connect() builds a new adapter each time, and two Traders in one
+# process share the one MT5 session. Direct MetaTrader5 calls made by user code
+# are outside this lock.
+_SESSION = threading.RLock()
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def _serialized(method: Callable[_P, _R]) -> Callable[_P, _R]:
+    @functools.wraps(method)
+    def locked(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        with _SESSION:
+            return method(*args, **kwargs)
+
+    return locked
+
 
 class MetaTrader5Terminal:
     def __init__(self, mt5: Any) -> None:
         # `Any`: the MetaTrader5 package ships no type information.
         self._mt5 = mt5
-        self._order_types = _order_type_table(mt5)
+        self._order_types = mt5_mapping.order_type_table(mt5)
         self._pending_by_type = {
             code: (side, kind)
             for (side, kind), code in self._order_types.items()
@@ -80,6 +95,7 @@ class MetaTrader5Terminal:
             )
         return Ok(cls(module))
 
+    @_serialized
     def connect(self, credentials: Credentials) -> Result[None, TradeError]:
         args = (credentials.path,) if credentials.path else ()
         if self._mt5.initialize(
@@ -104,9 +120,11 @@ class MetaTrader5Terminal:
             )
         )
 
+    @_serialized
     def shutdown(self) -> None:
         self._mt5.shutdown()
 
+    @_serialized
     def symbol(self, name: str) -> Result[SymbolSpec, TradeError]:
         info = self._mt5.symbol_info(name)
         if info is None:
@@ -133,6 +151,7 @@ class MetaTrader5Terminal:
             )
         )
 
+    @_serialized
     def tick(self, name: str) -> Result[Tick, TradeError]:
         tick = self._mt5.symbol_info_tick(name)
         # A zero side means no quote yet; trading at price 0 must never be attempted.
@@ -140,25 +159,15 @@ class MetaTrader5Terminal:
             return Err(TradeError(ErrorKind.NO_PRICE, f"no quote for {name!r}"))
         return Ok(Tick(bid=float(tick.bid), ask=float(tick.ask)))
 
+    @_serialized
     def send(self, request: OrderRequest | CancelRequest) -> Result[TradeReceipt, TradeError]:
         payload = self._payload(request)
         result = self._mt5.order_send(payload)
         if result is None:
             return Err(self._send_failure())
-        return Ok(
-            TradeReceipt(
-                retcode=int(result.retcode),
-                deal=int(result.deal),
-                order=int(result.order),
-                volume=float(result.volume),
-                price=float(result.price),
-                bid=float(result.bid),
-                ask=float(result.ask),
-                comment=str(result.comment),
-                request_id=int(result.request_id),
-            )
-        )
+        return Ok(mt5_mapping.receipt(result))
 
+    @_serialized
     def positions(
         self, *, symbol: str | None = None, ticket: int | None = None
     ) -> Result[list[Position], TradeError]:
@@ -170,8 +179,11 @@ class MetaTrader5Terminal:
         raw = self._listing(self._mt5.positions_get(**query), "positions_get")
         if isinstance(raw, Err):
             return raw
-        return Ok([self._position(p) for p in raw.value])
+        found = [mt5_mapping.position(p, self._position_buy) for p in raw.value]
+        # MT5 ignores `symbol` once `ticket` is given; the port promises both apply.
+        return Ok([p for p in found if symbol is None or p.symbol == symbol])
 
+    @_serialized
     def pending_orders(
         self, *, symbol: str | None = None
     ) -> Result[list[PendingOrder], TradeError]:
@@ -179,26 +191,7 @@ class MetaTrader5Terminal:
         raw = self._listing(self._mt5.orders_get(**query), "orders_get")
         if isinstance(raw, Err):
             return raw
-        orders = []
-        for o in raw.value:
-            key = self._pending_by_type.get(int(o.type))
-            # Market orders still being processed and close-by orders are not resting orders.
-            if key is None:
-                continue
-            side, kind = key
-            orders.append(
-                PendingOrder(
-                    ticket=int(o.ticket),
-                    symbol=str(o.symbol),
-                    side=side,
-                    kind=kind,
-                    volume=float(o.volume_current),
-                    price=float(o.price_open),
-                    magic=int(o.magic),
-                    comment=str(o.comment),
-                )
-            )
-        return Ok(orders)
+        return Ok(mt5_mapping.pending_orders(raw.value, self._pending_by_type))
 
     # ------------------------------------------------------------------ helpers
 
@@ -220,23 +213,6 @@ class MetaTrader5Terminal:
         optional = {"sl": request.sl, "tp": request.tp, "position": request.position}
         payload.update({key: value for key, value in optional.items() if value is not None})
         return payload
-
-    def _position(self, p: Any) -> Position:
-        return Position(
-            ticket=int(p.ticket),
-            symbol=str(p.symbol),
-            side=Side.BUY if p.type == self._position_buy else Side.SELL,
-            volume=float(p.volume),
-            price_open=float(p.price_open),
-            # MT5 encodes "no stop" as 0.0, which is also a (useless) price.
-            sl=float(p.sl) or None,
-            tp=float(p.tp) or None,
-            price_current=float(p.price_current),
-            profit=float(p.profit),
-            time=int(p.time),
-            magic=int(p.magic),
-            comment=str(p.comment),
-        )
 
     def _listing(self, raw: Any, call: str) -> Result[tuple[Any, ...], TradeError]:
         if raw is not None:
@@ -262,16 +238,3 @@ class MetaTrader5Terminal:
     def _error(self) -> tuple[int, str]:
         code, message = self._mt5.last_error()
         return code, f"[{code}] {message}"
-
-
-def _order_type_table(mt5: Any) -> dict[tuple[Side, PendingKind | None], int]:
-    return {
-        (Side.BUY, None): mt5.ORDER_TYPE_BUY,
-        (Side.SELL, None): mt5.ORDER_TYPE_SELL,
-        (Side.BUY, PendingKind.LIMIT): mt5.ORDER_TYPE_BUY_LIMIT,
-        (Side.SELL, PendingKind.LIMIT): mt5.ORDER_TYPE_SELL_LIMIT,
-        (Side.BUY, PendingKind.STOP): mt5.ORDER_TYPE_BUY_STOP,
-        (Side.SELL, PendingKind.STOP): mt5.ORDER_TYPE_SELL_STOP,
-        (Side.BUY, PendingKind.STOP_LIMIT): mt5.ORDER_TYPE_BUY_STOP_LIMIT,
-        (Side.SELL, PendingKind.STOP_LIMIT): mt5.ORDER_TYPE_SELL_STOP_LIMIT,
-    }

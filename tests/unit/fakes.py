@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
+from typing import Any
 
 from PythonMetaTrader5.application.ports import Credentials
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
 from PythonMetaTrader5.domain.market import PendingOrder, Position, Tick, TradeReceipt
+from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
 from PythonMetaTrader5.domain.symbol import SymbolSpec
 from PythonMetaTrader5.result import Err, Ok, Result
@@ -34,6 +36,24 @@ XAUUSD = SymbolSpec(
     filling_flags=2,
     exchange_execution=False,
 )
+
+
+def make_position(ticket: int = 1, **overrides: Any) -> Position:
+    fields: dict[str, Any] = {
+        "ticket": ticket,
+        "symbol": "EURUSD",
+        "side": Side.BUY,
+        "volume": 0.1,
+        "price_open": 1.1,
+        "sl": None,
+        "tp": None,
+        "price_current": 1.1,
+        "profit": 0.0,
+        "time": 0,
+        "magic": 0,
+        "comment": "",
+    }
+    return Position(**{**fields, **overrides})
 
 
 def receipt(retcode: int = 10009, price: float = 0.0) -> TradeReceipt:

@@ -49,6 +49,10 @@ class SymbolSpec:
         return round(round(price / step) * step, self.digits)
 
     def validate_volume(self, volume: float) -> Result[float, TradeError]:
+        if self.volume_step <= 0:
+            # Broken symbol data: refusing is the only safe answer, guessing a
+            # step could send a volume the broker never allowed.
+            return Err(self._volume_error(volume, "not checkable against"))
         if volume < self.volume_min - _EPSILON or volume > self.volume_max + _EPSILON:
             return Err(self._volume_error(volume, "outside"))
         steps = (volume - self.volume_min) / self.volume_step

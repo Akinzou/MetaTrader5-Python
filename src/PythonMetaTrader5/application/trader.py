@@ -2,31 +2,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from types import TracebackType
 
 from PythonMetaTrader5.application.batch import BatchFailure, run_batch, with_magic
+from PythonMetaTrader5.application.entries import StopInput, validate_entry
 from PythonMetaTrader5.application.execution import RetryPolicy, execute
 from PythonMetaTrader5.application.ports import Clock, Terminal
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
+from PythonMetaTrader5.domain.inputs import positive_number, symbol_filter, ticket_filter
 from PythonMetaTrader5.domain.market import PendingKind, PendingOrder, Position, TradeReceipt
 from PythonMetaTrader5.domain.orders import Side, validate_comment
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
-from PythonMetaTrader5.domain.stops import Stop
 from PythonMetaTrader5.domain.symbol import SymbolSpec
 from PythonMetaTrader5.result import Err, Ok, Result
-
-StopInput = Stop | float | None
-
-
-@dataclass(frozen=True, slots=True)
-class _Entry:
-    """Validated parameters shared by market and pending entries."""
-
-    spec: SymbolSpec
-    side: Side
-    volume: float
-    comment: str
 
 
 class Trader:
@@ -64,20 +53,23 @@ class Trader:
         fresh quote. An explicit ``price`` is sent once: re-sending the same price
         after a requote cannot succeed.
         """
-        entry = self._validate_entry(symbol, side, volume, comment)
+        entry = validate_entry(self._terminal, symbol, side, volume, comment=comment, sl=sl, tp=tp)
         if isinstance(entry, Err):
             return entry
         e = entry.value
+        fixed = None if price is None else positive_number(price, ErrorKind.INVALID_PRICE, "price")
+        if isinstance(fixed, Err):
+            return fixed
 
         def build() -> Result[OrderRequest | CancelRequest, TradeError]:
-            if price is not None:
-                reference = e.spec.normalize_price(price)
+            if fixed is not None:
+                reference = e.spec.normalize_price(fixed.value)
             else:
                 tick = self._terminal.tick(symbol)
                 if isinstance(tick, Err):
                     return tick
                 reference = tick.value.entry_price(e.side)
-            return Ok(self._entry_request(e, reference, sl=sl, tp=tp, pending=None))
+            return e.request(reference, pending=None, deviation=self._deviation, magic=self._magic)
 
         policy = self._retry if price is None else replace(self._retry, attempts=1)
         return execute(self._terminal, self._clock, build, policy)
@@ -98,13 +90,22 @@ class Trader:
         A limit on the wrong side of the market is refused by the server
         (INVALID_PRICE) rather than converted into a market order.
         """
-        entry = self._validate_entry(symbol, side, volume, comment)
+        entry = validate_entry(self._terminal, symbol, side, volume, comment=comment, sl=sl, tp=tp)
         if isinstance(entry, Err):
             return entry
         e = entry.value
-        level = e.spec.normalize_price(price)
-        request = self._entry_request(e, level, sl=sl, tp=tp, pending=PendingKind.LIMIT)
-        return execute(self._terminal, self._clock, lambda: Ok(request), self._retry)
+        level = positive_number(price, ErrorKind.INVALID_PRICE, "price")
+        if isinstance(level, Err):
+            return level
+        request = e.request(
+            e.spec.normalize_price(level.value),
+            pending=PendingKind.LIMIT,
+            deviation=self._deviation,
+            magic=self._magic,
+        )
+        if isinstance(request, Err):
+            return request
+        return execute(self._terminal, self._clock, lambda: request, self._retry)
 
     # ------------------------------------------------------------------- exits
 
@@ -154,9 +155,9 @@ class Trader:
     def positions(
         self, symbol: str | None = None, *, ticket: int | None = None, magic: int | None = None
     ) -> Result[list[Position], TradeError]:
-        invalid = _reject_empty(symbol)
-        if invalid is not None:
-            return invalid
+        for check in (symbol_filter(symbol), ticket_filter(ticket)):
+            if isinstance(check, Err):
+                return check
         listed = self._terminal.positions(symbol=symbol, ticket=ticket)
         return listed if isinstance(listed, Err) else Ok(with_magic(listed.value, magic))
 
@@ -167,9 +168,9 @@ class Trader:
         magic: int | None = None,
         kind: PendingKind | None = None,
     ) -> Result[list[PendingOrder], TradeError]:
-        invalid = _reject_empty(symbol)
-        if invalid is not None:
-            return invalid
+        checked = symbol_filter(symbol)
+        if isinstance(checked, Err):
+            return checked
         listed = self._terminal.pending_orders(symbol=symbol)
         if isinstance(listed, Err):
             return listed
@@ -191,47 +192,6 @@ class Trader:
         self.shutdown()
 
     # ----------------------------------------------------------------- helpers
-
-    def _validate_entry(
-        self, symbol: str, side: Side | str, volume: float, comment: str | None
-    ) -> Result[_Entry, TradeError]:
-        parsed_side = Side.parse(side)
-        if isinstance(parsed_side, Err):
-            return parsed_side
-        text = validate_comment(comment)
-        if isinstance(text, Err):
-            return text
-        spec = self._terminal.symbol(symbol)
-        if isinstance(spec, Err):
-            return spec
-        lots = spec.value.validate_volume(float(volume))
-        if isinstance(lots, Err):
-            return lots
-        return Ok(_Entry(spec.value, parsed_side.value, lots.value, text.value))
-
-    def _entry_request(
-        self,
-        e: _Entry,
-        reference: float,
-        *,
-        sl: StopInput,
-        tp: StopInput,
-        pending: PendingKind | None,
-    ) -> OrderRequest:
-        stop_loss, take_profit = _as_stop(sl), _as_stop(tp)
-        return OrderRequest(
-            symbol=e.spec.name,
-            side=e.side,
-            volume=e.volume,
-            price=reference,
-            filling=e.spec.market_filling() if pending is None else e.spec.pending_filling(),
-            deviation=self._deviation,
-            magic=self._magic,
-            comment=e.comment,
-            sl=stop_loss.stop_loss(e.side, reference, e.spec) if stop_loss else None,
-            tp=take_profit.take_profit(e.side, reference, e.spec) if take_profit else None,
-            pending=pending,
-        )
 
     def _close_one(
         self, position: Position, spec: Result[SymbolSpec, TradeError], comment: str
@@ -263,18 +223,3 @@ class Trader:
     def _cancel_one(self, order: PendingOrder) -> Result[TradeReceipt, TradeError]:
         request = CancelRequest(order=order.ticket)
         return execute(self._terminal, self._clock, lambda: Ok(request), self._retry)
-
-
-def _reject_empty(symbol: str | None) -> Err[TradeError] | None:
-    # "" is rejected rather than passed on: a missing webhook field arrives as ""
-    # and is easily mistaken for "no filter" (2.x and the first 3.0 draft both
-    # dropped falsy filters), which would act on the whole account.
-    if symbol == "":
-        return Err(TradeError(ErrorKind.INVALID_ARGUMENT, "symbol must not be empty"))
-    return None
-
-
-def _as_stop(value: StopInput) -> Stop | None:
-    if value is None or isinstance(value, Stop):
-        return value
-    return Stop.at_price(value)
