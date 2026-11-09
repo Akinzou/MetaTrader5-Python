@@ -62,7 +62,7 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
   sending.
 - Entries on a symbol whose data cannot price an order (no usable tick size
   or point, a NaN tick size, negative digits, volume step 0, ...) return
-  `TERMINAL_ERROR` instead of sending NaN prices or stops on the entry price.
+  `BROKEN_SYMBOL_DATA` instead of sending NaN prices or stops on the entry price.
   Points stops additionally need a usable `point`. NaN or infinite quotes are
   `NO_PRICE`. Closing still works on such symbols.
 - `positions(symbol, ticket=...)` applies both filters (MT5 drops the symbol

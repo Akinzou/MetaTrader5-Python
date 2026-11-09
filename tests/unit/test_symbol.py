@@ -68,4 +68,4 @@ def test_market_filling_prefers_fill_or_kill(flags: int, expected: Filling) -> N
 def test_pricing_on_broken_data_is_a_terminal_error_even_when_called_directly() -> None:
     result = on_grid(eurusd(point=0.0, tick_size=0.0), 1.1)
     assert isinstance(result, Err)
-    assert result.error.kind is ErrorKind.TERMINAL_ERROR
+    assert result.error.kind is ErrorKind.BROKEN_SYMBOL_DATA

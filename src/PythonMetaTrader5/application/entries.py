@@ -88,7 +88,7 @@ def validate_entry(
     amount = positive_number(volume, ErrorKind.INVALID_VOLUME, "volume")
     if isinstance(amount, Err):
         return amount
-    spec = terminal.symbol(symbol)
+    spec = _tradable_spec(terminal, symbol)
     if isinstance(spec, Err):
         return spec
     lots = spec.value.validate_volume(amount.value)
@@ -103,17 +103,24 @@ def validate_entry(
     )
 
 
+def _tradable_spec(terminal: Terminal, symbol: str) -> Result[SymbolSpec, TradeError]:
+    # Checked right after the lookup, before any caller value is judged against
+    # the spec: broken broker data must not come back as the caller's
+    # INVALID_VOLUME. It covers market orders without stops too, which never
+    # reach price_on_grid. Closing never calls this.
+    spec = terminal.symbol(symbol)
+    if isinstance(spec, Err):
+        return spec
+    tradable = spec.value.check_tradable()
+    return tradable if isinstance(tradable, Err) else spec
+
+
 def _quote_free_levels(
     spec: SymbolSpec, price: float | None, sl: Stop | None, tp: Stop | None
 ) -> Result[float | None, TradeError]:
     # Absolute stops do not depend on the quote, so they are checked here, before
     # the first tick request: otherwise a stop that can never be valid would sit
     # through the NO_PRICE retries of a symbol without quotes first.
-    # Broken pricing data refuses every entry, market orders without stops too:
-    # those never reach price_on_grid.
-    tradable = spec.check_tradable()
-    if isinstance(tradable, Err):
-        return tradable
     # The price first, so a bad price is still reported before a bad stop.
     level = None if price is None else spec.price_on_grid(price, ErrorKind.INVALID_PRICE, "price")
     if isinstance(level, Err):

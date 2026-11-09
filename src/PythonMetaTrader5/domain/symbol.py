@@ -44,11 +44,12 @@ class SymbolSpec:
     exchange_execution: bool
 
     # Broken terminal data (a point of 0 or inf, a NaN tick size, a volume step
-    # of 0) is reported as TERMINAL_ERROR: it is the broker's fault, and a bot
-    # must not file it as a bad signal. It is checked on use rather than refused
-    # for the whole spec, because closing a position needs only filling_flags
-    # and must keep working on such a symbol (a constructor invariant was tried
-    # and dropped for exactly that). Entries call check_tradable() first.
+    # of 0) is reported as BROKEN_SYMBOL_DATA: it is the broker's fault, so a bot
+    # must not file it as a bad signal, nor resend as after a TERMINAL_ERROR.
+    # It is checked on use rather than refused for the whole spec, because
+    # closing a position needs only filling_flags and must keep working on such
+    # a symbol (a constructor invariant was tried and dropped for exactly that).
+    # Entries call check_tradable() first.
 
     def check_tradable(self) -> Result[None, TradeError]:
         problem = self._pricing_problem() or self._volume_problem()
@@ -120,7 +121,7 @@ class SymbolSpec:
         return None
 
     def _data_error(self, problem: str) -> TradeError:
-        return TradeError(ErrorKind.TERMINAL_ERROR, f"{self.name}: broken symbol data: {problem}")
+        return TradeError(ErrorKind.BROKEN_SYMBOL_DATA, f"{self.name}: {problem}")
 
     def market_filling(self) -> Filling:
         # FOK first: a webhook bot asking for 1 lot must get 1 lot or nothing.
@@ -147,4 +148,11 @@ class SymbolSpec:
 
 
 def _usable(value: float) -> bool:
-    return math.isfinite(value) and value > 0
+    # The type check keeps a hand-built spec (point=None, point=True) on the
+    # Result path instead of raising TypeError from math.isfinite.
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0
+    )

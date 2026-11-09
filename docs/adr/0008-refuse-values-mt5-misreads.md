@@ -67,9 +67,10 @@ well.
   constructors raise `ValueError` on any invalid value.
 - Broken data from the terminal is the same problem on the other side. A
   point of 0 put a points stop on the entry price, and a point or tick size
-  of inf priced orders at NaN. These are the broker's fault, so they come
-  back as `TERMINAL_ERROR`, not as `INVALID_*`, which would blame the
-  caller. Every entry calls `SymbolSpec.check_tradable()` (tick size, step,
+  of inf priced orders at NaN. These are the broker's fault and do not clear
+  on a resend, so they come back as `BROKEN_SYMBOL_DATA`. `INVALID_*` would
+  blame the caller, and `TERMINAL_ERROR` means "never sent, safe to resend"
+  (ADR 0003), which would loop. Every entry calls `SymbolSpec.check_tradable()` (tick size, step,
   digits, volume limits), including market orders without stops.
   `points_to_price` also checks `point`, which only points stops need. The
   adapter refuses NaN and infinite quotes as `NO_PRICE`. Closing never runs

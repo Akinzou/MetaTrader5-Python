@@ -30,6 +30,10 @@ class ErrorKind(Enum):
     SYMBOL_NOT_FOUND = "symbol_not_found"
     NO_PRICE = "no_price"
     TERMINAL_ERROR = "terminal_error"
+    # The terminal reports symbol data that cannot price an order (a point of 0,
+    # a NaN tick size, a volume step of 0). Unlike TERMINAL_ERROR it does not
+    # clear on a resend, so it has its own kind: a bot must escalate, not retry.
+    BROKEN_SYMBOL_DATA = "broken_symbol_data"
     CONNECTION_FAILED = "connection_failed"
 
 

@@ -37,8 +37,24 @@ def test_a_symbol_without_a_usable_step_prices_nothing(
     ):
         assert isinstance(result, Err)
         # The broker's data is at fault, not the caller's input.
-        assert result.error.kind is ErrorKind.TERMINAL_ERROR
+        assert result.error.kind is ErrorKind.BROKEN_SYMBOL_DATA
     assert terminal.sent == []
+
+
+def test_broken_data_is_reported_before_the_callers_volume_is_judged(
+    trader: Trader, terminal: FakeTerminal
+) -> None:
+    terminal.specs["EURUSD"] = replace(EURUSD, tick_size=math.nan)
+    result = trader.open_position("EURUSD", "buy", 1000.0)  # above volume_max too
+    assert isinstance(result, Err)
+    assert result.error.kind is ErrorKind.BROKEN_SYMBOL_DATA
+
+
+def test_a_hand_built_spec_with_a_non_number_is_refused_not_raised() -> None:
+    spec = replace(EURUSD, point=None, tick_size=0.0)  # type: ignore[arg-type]
+    result = spec.check_tradable()
+    assert isinstance(result, Err)
+    assert result.error.kind is ErrorKind.BROKEN_SYMBOL_DATA
 
 
 @pytest.mark.parametrize("point", [0.0, math.inf, math.nan])
@@ -49,7 +65,7 @@ def test_points_stops_need_a_usable_point_but_prices_do_not(
     terminal.specs["EURUSD"] = replace(EURUSD, point=point)
     refused = trader.open_position("EURUSD", "buy", 0.1, sl=Stop.points(1000))
     assert isinstance(refused, Err)
-    assert refused.error.kind is ErrorKind.TERMINAL_ERROR
+    assert refused.error.kind is ErrorKind.BROKEN_SYMBOL_DATA
     assert terminal.sent == []
     assert isinstance(trader.open_position("EURUSD", "buy", 0.1, sl=1.09), Ok)
 
@@ -61,7 +77,7 @@ def test_unusable_volume_limits_refuse_every_entry(
     terminal.specs["EURUSD"] = replace(EURUSD, **broken)
     result = trader.open_position("EURUSD", "buy", 0.1)
     assert isinstance(result, Err)
-    assert result.error.kind is ErrorKind.TERMINAL_ERROR
+    assert result.error.kind is ErrorKind.BROKEN_SYMBOL_DATA
     assert terminal.sent == []
 
 
@@ -132,3 +148,19 @@ def test_a_points_take_profit_below_zero_is_refused(trader: Trader, terminal: Fa
     assert isinstance(result, Err)
     assert result.error.kind is ErrorKind.INVALID_STOPS
     assert terminal.sent == []
+
+
+def test_a_points_stop_on_a_limit_needs_a_usable_point(
+    trader: Trader, terminal: FakeTerminal
+) -> None:
+    terminal.specs["EURUSD"] = replace(EURUSD, point=0.0)
+    result = trader.place_limit_order("EURUSD", "buy", 0.1, 1.05, sl=Stop.points(100))
+    assert isinstance(result, Err)
+    assert result.error.kind is ErrorKind.BROKEN_SYMBOL_DATA
+    assert terminal.sent == []
+
+
+def test_volume_checked_directly_on_broken_limits_is_broken_symbol_data() -> None:
+    result = replace(EURUSD, volume_step=0.0).validate_volume(0.1)
+    assert isinstance(result, Err)
+    assert result.error.kind is ErrorKind.BROKEN_SYMBOL_DATA

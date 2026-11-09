@@ -135,6 +135,7 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
 | requote, price changed, no quotes, too many requests | retried with a fresh quote, up to `RetryPolicy.attempts` (default 3, 0.5 s apart), then `RETRIES_EXHAUSTED` |
 | timeout, no connection, or `order_send` lost in IPC | `OUTCOME_UNKNOWN`, never retried: check `positions()` first |
 | anything else | the matching `ErrorKind`, returned at once |
+| refused before sending: the terminal's symbol data cannot price an order (point 0, NaN tick size, volume step 0, ...) | `BROKEN_SYMBOL_DATA`, the same on every resend: escalate, don't retry. Closing still works on such symbols |
 
 ```python
 from PythonMetaTrader5 import RetryPolicy, connect
