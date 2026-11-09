@@ -47,7 +47,8 @@ def test_connect_passes_credentials_and_reports_failure(
     assert result.error.kind is ErrorKind.CONNECTION_FAILED
     assert "Authorization failed" in result.error.message
     assert "p" not in result.error.message.split()
-    assert mt5.calls[-2][1] == ("C:/mt5/terminal64.exe",)
+    # The first login opened the session, so a failed re-login must not close it.
+    assert mt5.calls[-1][1] == ("C:/mt5/terminal64.exe",)
 
 
 def test_password_never_appears_in_repr() -> None:

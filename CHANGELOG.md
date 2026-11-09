@@ -39,8 +39,15 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
 - An empty symbol (`""`) is rejected instead of meaning "every symbol".
 - `order_send` failures that may have reached the server are reported as
   `OUTCOME_UNKNOWN`, never as a plain terminal error.
-- A partly filled close is a `PARTIAL_FILL` error.
-- A failed login shuts the terminal session down.
+- Market deals (entries and closes) succeed only on DONE: a partial fill is a
+  `PARTIAL_FILL` error, a queued (PLACED) one is `OUTCOME_UNKNOWN`; neither is
+  re-sent.
+- Logins that would be coerced (`True`, `12345678.9`, non-ASCII digits) are
+  rejected, in `connect()` and in `Broker`.
+- A failed first login shuts the half-open terminal session down; a failed
+  re-login keeps an already working session.
+- Pending orders on exchange-execution symbols use RETURN filling.
+- `Broker.Close(None)` / `Broker.CancelOrders(None)` act on nothing.
 
 ### Fixed
 - `Close(ticket=...)` with `symbol=None` crashed.

@@ -25,7 +25,6 @@ from PythonMetaTrader5.result import Err, Ok, Result
 
 # MT5 reports "nothing found" and "call failed" both as None; only last_error()
 # tells them apart. 1 is RES_S_OK.
-_RES_S_OK = 1
 # last_error() codes for which order_send provably never left this process
 # (bad arguments, no IPC link, terminal refused). Any other failure (send,
 # receive, timeout) may have reached the server, so its outcome is unknown.
@@ -66,6 +65,10 @@ class MetaTrader5Terminal:
         self._exchange_execution = mt5.SYMBOL_TRADE_EXECUTION_EXCHANGE
         self._not_sent = frozenset(getattr(mt5, name) for name in _NOT_SENT_CODES)
         self._auto_trading_disabled = mt5.RES_E_AUTO_TRADING_DISABLED
+        self._ok = mt5.RES_S_OK
+        # MT5 keeps one session per process; it is only ours to close after a
+        # failed login if no earlier login of this adapter opened it.
+        self._session_open = False
 
     @classmethod
     def load(cls) -> Result[MetaTrader5Terminal, TradeError]:
@@ -89,11 +92,13 @@ class MetaTrader5Terminal:
             server=credentials.server,
             timeout=credentials.timeout_ms,
         ):
+            self._session_open = True
             return Ok(None)
-        # initialize() may have attached to (or launched) the terminal before the
-        # login failed; an open half-session makes every later initialize() fail.
         error = self._last_error()
-        self._mt5.shutdown()
+        if not self._session_open:
+            # initialize() may have attached to (or launched) the terminal before
+            # the login failed; that half-session makes every later attempt fail.
+            self._mt5.shutdown()
         return Err(
             TradeError(
                 ErrorKind.CONNECTION_FAILED,
@@ -239,23 +244,26 @@ class MetaTrader5Terminal:
         if raw is not None:
             return Ok(tuple(raw))
         code, _ = self._mt5.last_error()
-        if code == _RES_S_OK:
+        if code == self._ok:
             return Ok(())
         return Err(TradeError(ErrorKind.TERMINAL_ERROR, f"{call} failed: {self._last_error()}"))
 
     def _send_failure(self) -> TradeError:
-        code, message = self._mt5.last_error()
+        code, text = self._error()
         if code == self._auto_trading_disabled:
             kind = ErrorKind.ALGO_TRADING_DISABLED
         elif code in self._not_sent:
             kind = ErrorKind.TERMINAL_ERROR
         else:
             kind = ErrorKind.OUTCOME_UNKNOWN
-        return TradeError(kind, f"order_send failed: [{code}] {message}")
+        return TradeError(kind, f"order_send failed: {text}")
 
     def _last_error(self) -> str:
+        return self._error()[1]
+
+    def _error(self) -> tuple[int, str]:
         code, message = self._mt5.last_error()
-        return f"[{code}] {message}"
+        return code, f"[{code}] {message}"
 
 
 def _order_type_table(mt5: Any) -> dict[tuple[Side, PendingKind | None], int]:

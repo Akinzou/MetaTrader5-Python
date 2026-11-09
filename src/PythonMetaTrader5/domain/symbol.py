@@ -38,7 +38,9 @@ class SymbolSpec:
     volume_max: float
     volume_step: float
     filling_flags: int
-    exchange_execution: bool = False
+    # Required on purpose: a default would quietly treat an exchange symbol as
+    # market execution and send limits that cancel instead of resting.
+    exchange_execution: bool
 
     def normalize_price(self, price: float) -> float:
         # A price must sit on the tick grid, not merely have `digits` decimals:

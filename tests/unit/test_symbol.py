@@ -15,6 +15,7 @@ def eurusd(**overrides: object) -> SymbolSpec:
         "volume_max": 100.0,
         "volume_step": 0.01,
         "filling_flags": 1,
+        "exchange_execution": False,
     }
     fields.update(overrides)
     return SymbolSpec(**fields)  # type: ignore[arg-type]

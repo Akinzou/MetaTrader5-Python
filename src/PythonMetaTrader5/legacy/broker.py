@@ -13,7 +13,7 @@ from typing import Any, ClassVar
 
 from PythonMetaTrader5.adapters.mt5_terminal import MetaTrader5Terminal
 from PythonMetaTrader5.adapters.system_clock import SystemClock
-from PythonMetaTrader5.application.ports import Clock, Credentials, Terminal
+from PythonMetaTrader5.application.ports import Clock, Credentials, Terminal, parse_login
 from PythonMetaTrader5.application.trader import Trader
 from PythonMetaTrader5.domain.errors import TradeError
 from PythonMetaTrader5.domain.market import PendingKind, TradeReceipt
@@ -50,7 +50,12 @@ class Broker:
         )
         self.log = log
         self.server = str(server)
-        self._credentials = Credentials(int(log), str(password), self.server)
+        account = parse_login(log)
+        if account is None:
+            # Programming error, raised as 2.x did for non-numeric logins; silently
+            # coercing True or 12345678.9 would trade on another account.
+            raise ValueError(f"login must be a positive integer, got {log!r}")
+        self._credentials = Credentials(account, str(password), self.server)
         self._clock = clock or SystemClock()
         self._terminal = terminal or _load_terminal()
         self._trader = Trader(self._terminal, self._clock) if self._terminal else None

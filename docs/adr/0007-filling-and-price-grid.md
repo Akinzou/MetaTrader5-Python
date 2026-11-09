@@ -28,4 +28,4 @@ like 5780.13 on a 0.25-tick index, which the server rejects.
 ## Consequences
 
 - Brokers that do not allow FOK no longer reject every order with 10030.
-- A partial IOC fill is still `Ok`; `receipt.volume` gives the filled size.
+- A partial IOC fill is a `PARTIAL_FILL` error carrying the receipt (see ADR 0003).

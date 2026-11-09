@@ -21,6 +21,7 @@ EURUSD = SymbolSpec(
     volume_max=100.0,
     volume_step=0.01,
     filling_flags=1,
+    exchange_execution=False,
 )
 XAUUSD = SymbolSpec(
     name="XAUUSD",
@@ -31,6 +32,7 @@ XAUUSD = SymbolSpec(
     volume_max=50.0,
     volume_step=0.01,
     filling_flags=2,
+    exchange_execution=False,
 )
 
 

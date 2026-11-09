@@ -19,6 +19,10 @@ upgrading a bot that trades real money.
 | `Close(symbol=None, ticket=...)` crashed | Each position is closed on its own symbol | It priced the close with the `symbol` argument |
 | `Close(None)` without a ticket crashed without closing anything | Still closes nothing: logs an error, returns `False` | Forwarding `None` would close every position on the account |
 | A partly filled close counted as closed | Reported as a failure (`PARTIAL_FILL`), `Close()` returns `False` | The rest of the position was left open silently |
+| A partial or only-queued (PLACED) market entry counted as opened | Logged as an error; the receipt is still returned, so check `receipt.retcode` (10009 = done) | The bot believed it held the full size |
+| `CancelOrders(None)` | Cancels nothing and logs an error | Guards against a missing symbol acting on the whole account |
+| `Broker(True, ...)` or `Broker(12345678.9, ...)` logged into account 1 / 12345678 | Raises `ValueError` (as a non-numeric login already did) | It traded on a different account than intended |
+| Limit orders on exchange-execution symbols used IOC | Use RETURN so they rest in the book | IOC cancelled them unless instantly fillable |
 | `CancelOrders` could loop forever on a failed cancel | One attempt per order (requotes retried), failures logged | Same as above |
 | Comments longer than 31 characters made `order_send` fail with `None` | Rejected before sending, logged | Explicit error instead of a crash downstream |
 | `ticket=` on `OpenPosition`/`Buy`/`Sell`/`BuyLimit`/`SellLimit` was forwarded as `position` | Refused: returns `None`, logs an error | On hedging accounts it turned an entry into a close of that position |

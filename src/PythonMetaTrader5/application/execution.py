@@ -10,8 +10,8 @@ from PythonMetaTrader5.application.ports import Clock, Terminal
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
 from PythonMetaTrader5.domain.market import TradeReceipt
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
-from PythonMetaTrader5.domain.retcodes import Outcome, classify, error_for
-from PythonMetaTrader5.result import Err, Result
+from PythonMetaTrader5.domain.retcodes import DONE, DONE_PARTIAL, Outcome, classify, error_for
+from PythonMetaTrader5.result import Err, Ok, Result
 
 log = logging.getLogger("PythonMetaTrader5")
 
@@ -54,7 +54,7 @@ def execute(
         last = sent.value
         outcome = classify(last.retcode)
         if outcome is Outcome.SUCCESS:
-            return sent
+            return _confirm(request.value, last)
         if outcome is Outcome.FAIL:
             return Err(replace(error_for(last.retcode), receipt=last))
         log.warning("retcode %s on attempt %s/%s", last.retcode, attempt, policy.attempts)
@@ -68,5 +68,37 @@ def execute(
             f"gave up after {policy.attempts} attempts: {error_for(last.retcode).message}",
             retcode=last.retcode,
             receipt=last,
+        )
+    )
+
+
+def _confirm(
+    request: OrderRequest | CancelRequest, receipt: TradeReceipt
+) -> Result[TradeReceipt, TradeError]:
+    """Only DONE proves a market deal (entry or close) executed in full.
+
+    PARTIAL leaves volume unfilled (an entry is smaller than asked, a close leaves
+    a remainder open) and PLACED means queued, not executed. Both come back as
+    errors carrying the receipt, and neither is retried: part of the deal may
+    already exist, so re-sending could double it.
+    """
+    is_deal = isinstance(request, OrderRequest) and request.pending is None
+    if not is_deal or receipt.retcode == DONE:
+        return Ok(receipt)
+    if receipt.retcode == DONE_PARTIAL:
+        return Err(
+            TradeError(
+                ErrorKind.PARTIAL_FILL,
+                f"executed {receipt.volume} of the requested lots",
+                retcode=receipt.retcode,
+                receipt=receipt,
+            )
+        )
+    return Err(
+        TradeError(
+            ErrorKind.OUTCOME_UNKNOWN,
+            "accepted but not executed yet; check positions before re-sending",
+            retcode=receipt.retcode,
+            receipt=receipt,
         )
     )

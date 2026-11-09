@@ -12,7 +12,6 @@ from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
 from PythonMetaTrader5.domain.market import PendingKind, PendingOrder, Position, TradeReceipt
 from PythonMetaTrader5.domain.orders import Side, validate_comment
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
-from PythonMetaTrader5.domain.retcodes import DONE, DONE_PARTIAL
 from PythonMetaTrader5.domain.stops import Stop
 from PythonMetaTrader5.domain.symbol import SymbolSpec
 from PythonMetaTrader5.result import Err, Ok, Result
@@ -259,18 +258,7 @@ class Trader:
                 )
             )
 
-        closed = execute(self._terminal, self._clock, build, self._retry)
-        # Only DONE proves the position is gone. PARTIAL leaves a remainder open and
-        # PLACED means the close order is queued, not executed: both must surface.
-        if isinstance(closed, Err) or closed.value.retcode == DONE:
-            return closed
-        receipt = closed.value
-        kind, message = (
-            (ErrorKind.PARTIAL_FILL, f"closed {receipt.volume} of {position.volume} lots")
-            if receipt.retcode == DONE_PARTIAL
-            else (ErrorKind.OUTCOME_UNKNOWN, "close order accepted but not executed yet")
-        )
-        return Err(TradeError(kind, message, retcode=receipt.retcode, receipt=receipt))
+        return execute(self._terminal, self._clock, build, self._retry)
 
     def _cancel_one(self, order: PendingOrder) -> Result[TradeReceipt, TradeError]:
         request = CancelRequest(order=order.ticket)

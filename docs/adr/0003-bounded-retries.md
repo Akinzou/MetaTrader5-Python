@@ -28,9 +28,12 @@ A missing quote while the request is being built (`NO_PRICE`) is retried,
 because nothing has been sent yet. A symbol that was just added to Market Watch
 has no quote for a moment.
 
-A partial fill (`DONE_PARTIAL`) on a close is an error (`PARTIAL_FILL`): the
-rest of the position is still open. On an entry it stays `Ok`, and
-`receipt.volume` gives the filled size.
+Only DONE proves that a market deal (an entry or a close) executed in full.
+DONE_PARTIAL becomes `PARTIAL_FILL` and PLACED becomes `OUTCOME_UNKNOWN`, both
+carrying the receipt and neither retried, because part of the deal may already
+exist. An earlier draft returned `Ok` for a partial entry. We dropped that
+because a bot asking for 1 lot would believe it held 1 lot while holding 0.3.
+For pending orders, PLACED is the normal success.
 
 ## Consequences
 

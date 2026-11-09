@@ -111,16 +111,12 @@ def test_first_missing_quote_after_selection_is_waited_for(
     assert len(terminal.sent) == 1
 
 
-def test_partial_close_is_a_failure_but_partial_open_is_not(
-    trader: Trader, terminal: FakeTerminal
-) -> None:
+def test_partial_close_is_a_failure(trader: Trader, terminal: FakeTerminal) -> None:
     terminal.open_positions = [position(1)]
     terminal.retcodes.append(10010)
     closed = trader.close_positions("EURUSD")
     assert isinstance(closed, Err)
     assert closed.error.errors[0].kind is ErrorKind.PARTIAL_FILL
-    terminal.retcodes.append(10010)
-    assert isinstance(trader.open_position("EURUSD", "buy", 0.1), Ok)
 
 
 def test_limit_order_uses_a_filling_mode_the_symbol_allows(

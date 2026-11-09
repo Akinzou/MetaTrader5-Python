@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import operator
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -20,6 +21,26 @@ class Credentials:
     server: str
     path: str | None = None
     timeout_ms: int = 60_000
+
+
+def parse_login(login: object) -> int | None:
+    """Account number from an int-like value or an ASCII digit string, else None.
+
+    int() is deliberately avoided: int(True) == 1 and int(12345678.9) == 12345678
+    would log into another account without any error, and int() accepts
+    non-ASCII digits such as "\u0661\u0662\u0663".
+    """
+    if isinstance(login, bool):
+        return None
+    if isinstance(login, str):
+        text = login.strip()
+        number = int(text) if text.isascii() and text.isdecimal() else 0
+    else:
+        try:
+            number = operator.index(login)  # type: ignore[arg-type]
+        except TypeError:
+            return None
+    return number if number > 0 else None
 
 
 class Terminal(Protocol):

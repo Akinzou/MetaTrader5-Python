@@ -70,6 +70,9 @@ with trader:  # shuts the terminal connection down on exit
 `connect(login, password, server, *, path=None, timeout_ms=60000, magic=0,
 deviation=10, retry=None) -> Result[Trader, TradeError]`
 
+`login` must be a positive integer or a string of ASCII digits; `True`,
+`12345678.9` and similar values are rejected rather than coerced.
+
 | `Trader` method | Returns |
 |---|---|
 | `open_position(symbol, side, volume, *, sl=None, tp=None, price=None, comment=None)` | `Result[TradeReceipt, TradeError]` |
@@ -100,8 +103,10 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
 
 | Server answer | What happens |
 |---|---|
-| done, placed, partial fill on an entry | `Ok(receipt)` (`receipt.volume` is the filled size) |
-| partial fill on a close | `PARTIAL_FILL`: the rest of the position is still open |
+| market deal (entry or close): done | `Ok(receipt)` |
+| pending order: placed or done | `Ok(receipt)` |
+| market deal: partial fill | `PARTIAL_FILL` with the receipt; part of the deal exists, never re-sent |
+| market deal: placed (queued, not executed) | `OUTCOME_UNKNOWN` with the receipt, never re-sent |
 | requote, price changed, no quotes, too many requests | retried with a fresh quote, up to `RetryPolicy.attempts` (default 3, 0.5 s apart), then `RETRIES_EXHAUSTED` |
 | timeout, no connection, or `order_send` lost in IPC | `OUTCOME_UNKNOWN`, never retried: check `positions()` first |
 | anything else | the matching `ErrorKind`, returned at once |

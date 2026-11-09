@@ -7,7 +7,7 @@ import logging
 from PythonMetaTrader5.adapters.mt5_terminal import MetaTrader5Terminal
 from PythonMetaTrader5.adapters.system_clock import SystemClock
 from PythonMetaTrader5.application.execution import RetryPolicy
-from PythonMetaTrader5.application.ports import Credentials
+from PythonMetaTrader5.application.ports import Credentials, parse_login
 from PythonMetaTrader5.application.trader import Trader
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
 from PythonMetaTrader5.result import Err, Ok, Result
@@ -27,7 +27,7 @@ def connect(
     retry: RetryPolicy | None = None,
 ) -> Result[Trader, TradeError]:
     """Start (or attach to) the MT5 terminal, log in, and return a ready Trader."""
-    account = _account_number(login)
+    account = parse_login(login)
     if account is None:
         return Err(
             TradeError(
@@ -46,15 +46,3 @@ def connect(
     # balance, which do not belong in application logs.
     log.info("connected to %s as %s", server, account)
     return Ok(Trader(terminal, SystemClock(), magic=magic, deviation=deviation, retry=retry))
-
-
-def _account_number(login: object) -> int | None:
-    # Exact types only: int(True) == 1 and int(12345678.9) == 12345678 would log
-    # into a different account than the caller meant, without any error.
-    if isinstance(login, str) and login.strip().isdigit():
-        number = int(login)
-    elif type(login) is int:
-        number = login
-    else:
-        return None
-    return number if number > 0 else None
