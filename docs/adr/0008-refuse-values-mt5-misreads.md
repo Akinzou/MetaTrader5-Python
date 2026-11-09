@@ -23,7 +23,14 @@ Refuse these values at the application boundary, before any terminal call:
 
 - Volume and prices must be positive finite real numbers. Bools are excluded.
   `numbers.Real` is used rather than `float`, so numpy scalars from
-  pandas-based bots still pass.
+  pandas-based bots still pass. `Decimal`, which is not a `Real`, is accepted
+  explicitly.
+- `Stop.at_price()` and `Stop.points()` store their argument unconverted. If
+  they called `float()`, `True` would become `1.0` before the check could see
+  it.
+- The legacy `BuyLimit` / `SellLimit` check the level before comparing it
+  with the quote. Otherwise a level of 0 would "cross" the market and be sent
+  as a market order.
 - A stop is `None` (no stop), a positive finite price or a `Stop`. A stop that
   resolves to zero or below after tick-grid rounding is refused too.
 - A ticket is `None` or a positive integer.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import threading
 from dataclasses import replace
+from decimal import Decimal
 
 import pytest
 
@@ -138,3 +139,42 @@ def test_concurrent_calls_cannot_read_each_others_last_error() -> None:
     worker.join(5)
     other.join(5)
     assert blocked, "a second adapter ran while the first was between call and last_error()"
+
+
+@pytest.mark.parametrize("level", [0, -1.0, math.inf, math.nan, True])
+def test_legacy_limit_with_a_bad_level_sends_nothing(terminal: FakeTerminal, level: object) -> None:
+    # A bad level used to be compared with the quote first and "crossed" into a market order.
+    with pytest.warns(DeprecationWarning, match="connect"):
+        broker = Broker(1, "pw", "Demo", terminal=terminal, clock=FakeClock())
+    assert broker.SellLimit("EURUSD", 0.1, level) is None  # type: ignore[arg-type]
+    assert broker.BuyLimit("EURUSD", 0.1, level) is None  # type: ignore[arg-type]
+    assert terminal.sent == []
+
+
+@pytest.mark.parametrize("sl_type", ["absolute", "offset"])
+def test_a_bool_stop_is_refused_however_it_is_wrapped(
+    trader: Trader, terminal: FakeTerminal, sl_type: str
+) -> None:
+    for stop in (Stop.at_price(True), Stop.points(True)):  # type: ignore[arg-type]
+        result = trader.open_position("EURUSD", "buy", 0.1, sl=stop)
+        assert isinstance(result, Err)
+        assert result.error.kind is ErrorKind.INVALID_STOPS
+    with pytest.warns(DeprecationWarning, match="connect"):
+        broker = Broker(1, "pw", "Demo", terminal=terminal, clock=FakeClock())
+    assert broker.OpenPosition("EURUSD", "buy", 0.1, sl=True, sl_type=sl_type) is None  # type: ignore[arg-type]
+    assert terminal.sent == []
+
+
+def test_decimal_amounts_are_accepted(trader: Trader, terminal: FakeTerminal) -> None:
+    result = trader.open_position("EURUSD", "buy", Decimal("0.1"), price=Decimal("1.1001"))  # type: ignore[arg-type]
+    assert isinstance(result, Ok)
+    request = terminal.sent[0]
+    assert (request.volume, request.price) == (0.1, 1.1001)  # type: ignore[union-attr]
+
+
+def test_a_bad_price_is_refused_before_any_symbol_lookup(
+    trader: Trader, terminal: FakeTerminal
+) -> None:
+    trader.open_position("EURUSD", "buy", 0.1, price=math.nan)
+    trader.place_limit_order("EURUSD", "buy", 0.1, 0)
+    assert terminal.symbol_lookups == []

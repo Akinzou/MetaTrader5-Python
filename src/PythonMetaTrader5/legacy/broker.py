@@ -15,7 +15,8 @@ from PythonMetaTrader5.adapters.mt5_terminal import MetaTrader5Terminal
 from PythonMetaTrader5.adapters.system_clock import SystemClock
 from PythonMetaTrader5.application.ports import Clock, Credentials, Terminal, parse_login
 from PythonMetaTrader5.application.trader import Trader
-from PythonMetaTrader5.domain.errors import TradeError
+from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
+from PythonMetaTrader5.domain.inputs import positive_number
 from PythonMetaTrader5.domain.market import PendingKind, TradeReceipt
 from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.legacy import views
@@ -236,10 +237,17 @@ class Broker:
         trader = self._ready()
         if trader is None or self._terminal is None or not no_ticket(ticket):
             return None
-        volume, stoplimit = number(volume), number(stoplimit)
+        volume = number(volume)
         if price is not None:
             log.error("%s: price has to be None for limit orders", self.log)
             return None
+        # Checked before the crossing test below: a level of 0 always "crosses"
+        # for a sell and would become a market order.
+        level = positive_number(number(stoplimit), ErrorKind.INVALID_PRICE, "stoplimit")
+        if isinstance(level, Err):
+            log.error("%s: %s", self.log, level.error)
+            return None
+        stoplimit = level.value
         tick = self._terminal.tick(symbol)
         if isinstance(tick, Err):
             log.error("%s: %s", self.log, tick.error)

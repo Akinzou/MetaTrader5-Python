@@ -9,17 +9,19 @@ here instead of being passed on.
 from __future__ import annotations
 
 import math
+from decimal import Decimal
 from numbers import Integral, Real
 
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
-from PythonMetaTrader5.domain.stops import Stop
+from PythonMetaTrader5.domain.stops import Stop, StopKind
 from PythonMetaTrader5.result import Err, Ok, Result
 
 
 def positive_number(value: object, kind: ErrorKind, what: str) -> Result[float, TradeError]:
-    # numbers.Real rather than float so numpy scalars from pandas-based bots pass;
-    # bool is excluded explicitly because it is a Real (True == 1).
-    if isinstance(value, bool) or not isinstance(value, Real):
+    # numbers.Real rather than float so numpy scalars from pandas-based bots pass,
+    # plus Decimal (not a Real) for bots that keep money as Decimal. bool is
+    # excluded explicitly because it is a Real (True == 1).
+    if isinstance(value, bool) or not isinstance(value, (Real, Decimal)):
         return Err(TradeError(kind, f"{what} must be a number, got {value!r}"))
     number = float(value)
     if not math.isfinite(number) or number <= 0:
@@ -31,11 +33,15 @@ def stop_input(value: object, what: str) -> Result[Stop | None, TradeError]:
     """``None`` means no stop; a float is a price; zero is refused, never "no stop"."""
     if value is None:
         return Ok(None)
+    kind = value.kind if isinstance(value, Stop) else StopKind.PRICE
     raw = value.value if isinstance(value, Stop) else value
+    if kind is StopKind.POINTS and isinstance(raw, (Real, Decimal)) and not isinstance(raw, bool):
+        raw = abs(raw)  # a points distance has no sign (see Stop._resolve)
     checked = positive_number(raw, ErrorKind.INVALID_STOPS, what)
     if isinstance(checked, Err):
         return checked
-    return Ok(value if isinstance(value, Stop) else Stop.at_price(checked.value))
+    # Rebuilt from the checked float, so later arithmetic never sees a Decimal or str.
+    return Ok(Stop(checked.value, kind))
 
 
 def ticket_filter(ticket: object) -> Result[int | None, TradeError]:

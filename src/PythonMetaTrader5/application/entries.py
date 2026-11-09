@@ -69,8 +69,9 @@ def validate_entry(
     sl: StopInput,
     tp: StopInput,
 ) -> Result[Entry, TradeError]:
-    # Every check that needs no terminal runs first, so bad input never costs a
-    # symbol lookup (which may add the symbol to Market Watch).
+    # Every check that needs no terminal runs before the symbol lookup, which
+    # costs a round trip and may add the symbol to Market Watch. Callers check
+    # their own price argument before calling this, for the same reason.
     values = _caller_values(side, comment, sl, tp)
     if isinstance(values, Err):
         return values

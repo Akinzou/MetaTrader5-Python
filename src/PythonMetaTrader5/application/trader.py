@@ -53,13 +53,14 @@ class Trader:
         fresh quote. An explicit ``price`` is sent once: re-sending the same price
         after a requote cannot succeed.
         """
+        # Checked before validate_entry so a bad price never costs a symbol lookup.
+        fixed = None if price is None else positive_number(price, ErrorKind.INVALID_PRICE, "price")
+        if isinstance(fixed, Err):
+            return fixed
         entry = validate_entry(self._terminal, symbol, side, volume, comment=comment, sl=sl, tp=tp)
         if isinstance(entry, Err):
             return entry
         e = entry.value
-        fixed = None if price is None else positive_number(price, ErrorKind.INVALID_PRICE, "price")
-        if isinstance(fixed, Err):
-            return fixed
 
         def build() -> Result[OrderRequest | CancelRequest, TradeError]:
             if fixed is not None:
@@ -90,13 +91,13 @@ class Trader:
         A limit on the wrong side of the market is refused by the server
         (INVALID_PRICE) rather than converted into a market order.
         """
+        level = positive_number(price, ErrorKind.INVALID_PRICE, "price")
+        if isinstance(level, Err):
+            return level
         entry = validate_entry(self._terminal, symbol, side, volume, comment=comment, sl=sl, tp=tp)
         if isinstance(entry, Err):
             return entry
         e = entry.value
-        level = positive_number(price, ErrorKind.INVALID_PRICE, "price")
-        if isinstance(level, Err):
-            return level
         request = e.request(
             e.spec.normalize_price(level.value),
             pending=PendingKind.LIMIT,

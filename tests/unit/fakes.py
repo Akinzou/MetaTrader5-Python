@@ -89,7 +89,7 @@ class FakeTerminal:
     open_orders: list[PendingOrder] = field(default_factory=list)
     send_failure: TradeError | None = None
     connect_failure: TradeError | None = None
-    # Number of connect() calls that fail before logins start to work.
+    # A countdown rather than a flag, so a retry loop can be shown to recover.
     connect_failures: int = 0
     sent: list[OrderRequest | CancelRequest] = field(default_factory=list)
     connected_with: list[Credentials] = field(default_factory=list)
