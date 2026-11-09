@@ -38,6 +38,7 @@ def receipt(result: Any) -> TradeReceipt:
         ask=float(result.ask),
         comment=str(result.comment),
         request_id=int(result.request_id),
+        retcode_external=int(result.retcode_external),
     )
 
 
@@ -56,6 +57,13 @@ def position(p: Any, position_buy: int) -> Position:
         time=int(p.time),
         magic=int(p.magic),
         comment=str(p.comment),
+        swap=float(p.swap),
+        identifier=int(p.identifier),
+        reason=int(p.reason),
+        time_msc=int(p.time_msc),
+        time_update=int(p.time_update),
+        time_update_msc=int(p.time_update_msc),
+        external_id=str(p.external_id),
     )
 
 

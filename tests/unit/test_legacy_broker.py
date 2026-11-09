@@ -8,7 +8,7 @@ from PythonMetaTrader5.domain.market import PendingKind, PendingOrder, Position
 from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
 
-from .fakes import FakeClock, FakeTerminal
+from .fakes import FakeClock, FakeTerminal, make_position
 
 
 @pytest.fixture
@@ -22,20 +22,7 @@ def orders(terminal: FakeTerminal) -> list[OrderRequest]:
 
 
 def long_position(ticket: int = 1) -> Position:
-    return Position(
-        ticket=ticket,
-        symbol="EURUSD",
-        side=Side.BUY,
-        volume=0.1,
-        price_open=1.0,
-        sl=None,
-        tp=1.2,
-        price_current=1.0,
-        profit=3.0,
-        time=5,
-        magic=0,
-        comment="",
-    )
+    return make_position(ticket, price_open=1.0, tp=1.2, price_current=1.0, profit=3.0, time=5)
 
 
 def test_constructor_logs_in_with_string_credentials(terminal: FakeTerminal) -> None:

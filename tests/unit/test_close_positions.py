@@ -6,23 +6,18 @@ from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.domain.requests import OrderRequest
 from PythonMetaTrader5.result import Err, Ok
 
-from .fakes import FakeTerminal
+from .fakes import FakeTerminal, make_position
 
 
 def position(ticket: int, symbol: str, side: Side, magic: int = 42) -> Position:
-    return Position(
-        ticket=ticket,
+    return make_position(
+        ticket,
         symbol=symbol,
         side=side,
         volume=0.2,
         price_open=1.0,
-        sl=None,
-        tp=None,
         price_current=1.0,
-        profit=0.0,
-        time=0,
         magic=magic,
-        comment="",
     )
 
 

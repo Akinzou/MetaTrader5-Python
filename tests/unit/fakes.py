@@ -52,6 +52,13 @@ def make_position(ticket: int = 1, **overrides: Any) -> Position:
         "time": 0,
         "magic": 0,
         "comment": "",
+        "swap": 0.0,
+        "identifier": ticket,
+        "reason": 0,
+        "time_msc": 0,
+        "time_update": 0,
+        "time_update_msc": 0,
+        "external_id": "",
     }
     return Position(**{**fields, **overrides})
 
@@ -67,6 +74,7 @@ def receipt(retcode: int = 10009, price: float = 0.0) -> TradeReceipt:
         ask=0.0,
         comment="",
         request_id=1,
+        retcode_external=0,
     )
 
 

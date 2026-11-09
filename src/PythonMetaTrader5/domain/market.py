@@ -36,6 +36,16 @@ class Position:
     time: int
     magic: int
     comment: str
+    # Kept although the 3.x API does not use them: 2.x returned the raw MT5
+    # object, so its users may read any of them (swap for P&L, identifier on
+    # netting accounts).
+    swap: float
+    identifier: int
+    reason: int
+    time_msc: int
+    time_update: int
+    time_update_msc: int
+    external_id: str
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -78,3 +88,4 @@ class TradeReceipt:
     ask: float
     comment: str
     request_id: int
+    retcode_external: int

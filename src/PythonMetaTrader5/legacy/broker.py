@@ -18,8 +18,9 @@ from PythonMetaTrader5.application.trader import Trader
 from PythonMetaTrader5.domain.errors import TradeError
 from PythonMetaTrader5.domain.market import PendingKind, TradeReceipt
 from PythonMetaTrader5.domain.orders import Side
-from PythonMetaTrader5.domain.stops import Stop
 from PythonMetaTrader5.legacy import views
+from PythonMetaTrader5.legacy.arguments import legacy_stop, no_ticket, number
+from PythonMetaTrader5.legacy.views import LegacyReceipt
 from PythonMetaTrader5.result import Err, Ok, Result
 
 log = logging.getLogger("PythonMetaTrader5.legacy")
@@ -89,7 +90,8 @@ class Broker:
         trader = self._ready()
         if trader is None:
             return []
-        listed = trader.positions(symbol, ticket=ticket)
+        # 2.x: a ticket selects that position whatever symbol was passed.
+        listed = trader.positions(None if ticket is not None else symbol, ticket=ticket)
         if isinstance(listed, Err):
             log.error("%s: %s", self.log, listed.error)
             return []
@@ -117,16 +119,22 @@ class Broker:
         ticket: int | None = None,
         sl_type: str = "absolute",
         tp_type: str = "absolute",
-    ) -> TradeReceipt | None:
+    ) -> LegacyReceipt | None:
         trader = self._ready()
-        if trader is None or not _no_ticket(ticket):
+        if trader is None or not no_ticket(ticket):
             return None
-        stops = _legacy_stop(sl, sl_type), _legacy_stop(tp, tp_type)
+        stops = legacy_stop(number(sl), sl_type), legacy_stop(number(tp), tp_type)
         if any(isinstance(stop, Err) for stop in stops):
             return None
         stop_loss, take_profit = (s.value for s in stops if isinstance(s, Ok))
         result = trader.open_position(
-            symbol, side, volume, sl=stop_loss, tp=take_profit, price=price, comment=comment
+            symbol,
+            side,
+            number(volume),
+            sl=stop_loss,
+            tp=take_profit,
+            price=number(price),
+            comment=comment,
         )
         return self._receipt(result, f"{side} {symbol}")
 
@@ -154,7 +162,7 @@ class Broker:
         price: float | None = None,
         comment: str | None = None,
         ticket: int | None = None,
-    ) -> TradeReceipt | None:
+    ) -> LegacyReceipt | None:
         return self._limit(
             Side.BUY, symbol, volume, stoplimit, price=price, comment=comment, ticket=ticket
         )
@@ -167,7 +175,7 @@ class Broker:
         price: float | None = None,
         comment: str | None = None,
         ticket: int | None = None,
-    ) -> TradeReceipt | None:
+    ) -> LegacyReceipt | None:
         return self._limit(
             Side.SELL, symbol, volume, stoplimit, price=price, comment=comment, ticket=ticket
         )
@@ -224,10 +232,11 @@ class Broker:
         price: float | None,
         comment: str | None,
         ticket: int | None,
-    ) -> TradeReceipt | None:
+    ) -> LegacyReceipt | None:
         trader = self._ready()
-        if trader is None or self._terminal is None or not _no_ticket(ticket):
+        if trader is None or self._terminal is None or not no_ticket(ticket):
             return None
+        volume, stoplimit = number(volume), number(stoplimit)
         if price is not None:
             log.error("%s: price has to be None for limit orders", self.log)
             return None
@@ -250,34 +259,12 @@ class Broker:
             return None
         return self._trader
 
-    def _receipt(self, result: Result[TradeReceipt, TradeError], what: str) -> TradeReceipt | None:
+    def _receipt(self, result: Result[TradeReceipt, TradeError], what: str) -> LegacyReceipt | None:
         if isinstance(result, Ok):
             log.info("%s: %s done", self.log, what)
-            return result.value
+            return views.as_receipt(result.value)
         log.error("%s: %s failed: %s", self.log, what, result.error)
-        return result.error.receipt
-
-
-def _legacy_stop(value: float | None, kind: str) -> Result[Stop | None, str]:
-    if value is None:
-        return Ok(None)
-    match (kind or "absolute").lower():
-        case "absolute":
-            return Ok(Stop.at_price(value))
-        case "offset":
-            return Ok(Stop.points(value))
-        case other:
-            log.error("invalid stop type %r (use 'absolute' or 'offset')", other)
-            return Err(other)
-
-
-def _no_ticket(ticket: int | None) -> bool:
-    if ticket is None:
-        return True
-    # 2.x forwarded it as `position` on an opening deal, which on hedging
-    # accounts turns an opposite-side entry into a close of that position.
-    log.error("the ticket argument is not supported for entries; use Close(ticket=...)")
-    return False
+        return views.as_receipt(result.error.receipt)
 
 
 def _load_terminal() -> Terminal | None:

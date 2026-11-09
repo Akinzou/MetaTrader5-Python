@@ -56,6 +56,7 @@ class FakeMT5:
             ask=1.2,
             comment="Request executed",
             request_id=13,
+            retcode_external=0,
         )
         self.positions: tuple[SimpleNamespace, ...] | None = ()
         self.orders: tuple[SimpleNamespace, ...] | None = ()
@@ -125,6 +126,13 @@ def raw_position(ticket: int = 1, type_: int = 1, sl: float = 0.0) -> SimpleName
         time=1700000000,
         magic=42,
         comment="bot",
+        swap=-0.5,
+        identifier=ticket,
+        reason=3,
+        time_msc=1700000000123,
+        time_update=1700000001,
+        time_update_msc=1700000001456,
+        external_id="",
     )
 
 

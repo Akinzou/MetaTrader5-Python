@@ -1,5 +1,7 @@
-from PythonMetaTrader5.domain.market import Position, Tick
+from PythonMetaTrader5.domain.market import Tick
 from PythonMetaTrader5.domain.orders import Side
+
+from .fakes import make_position
 
 
 def test_tick_quotes_the_price_a_side_trades_at() -> None:
@@ -11,19 +13,6 @@ def test_tick_quotes_the_price_a_side_trades_at() -> None:
 
 
 def test_position_without_stops_reports_none() -> None:
-    position = Position(
-        ticket=7,
-        symbol="EURUSD",
-        side=Side.SELL,
-        volume=0.1,
-        price_open=1.1,
-        sl=None,
-        tp=None,
-        price_current=1.09,
-        profit=10.0,
-        time=0,
-        magic=0,
-        comment="",
-    )
+    position = make_position(7, side=Side.SELL, price_current=1.09, profit=10.0)
     assert position.to_dict()["sl"] is None
     assert position.to_dict()["side"] == "sell"

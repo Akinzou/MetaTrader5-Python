@@ -180,3 +180,22 @@ def test_listing_distinguishes_empty_from_failure(
 def test_shutdown_is_forwarded(adapter: MetaTrader5Terminal, mt5: FakeMT5) -> None:
     adapter.shutdown()
     assert mt5.calls[-1][0] == "shutdown"
+
+
+def test_positions_and_receipts_keep_every_mt5_field(
+    adapter: MetaTrader5Terminal, mt5: FakeMT5
+) -> None:
+    mt5.positions = (raw_position(ticket=4),)
+    listed = adapter.positions()
+    assert isinstance(listed, Ok)
+    (p,) = listed.value
+    assert (p.swap, p.identifier, p.reason, p.external_id) == (-0.5, 4, 3, "")
+    assert (p.time_msc, p.time_update, p.time_update_msc) == (
+        1700000000123,
+        1700000001,
+        1700000001456,
+    )
+    mt5.send_result.retcode_external = 77  # type: ignore[union-attr]
+    sent = adapter.send(CancelRequest(order=1))
+    assert isinstance(sent, Ok)
+    assert sent.value.retcode_external == 77

@@ -5,27 +5,13 @@ from PythonMetaTrader5.application.execution import RetryPolicy
 from PythonMetaTrader5.application.trader import Trader
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
 from PythonMetaTrader5.domain.market import Position
-from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.result import Err
 
-from .fakes import FakeTerminal, receipt
+from .fakes import FakeTerminal, make_position, receipt
 
 
 def btc_position() -> Position:
-    return Position(
-        ticket=9,
-        symbol="BTCUSD",
-        side=Side.BUY,
-        volume=0.1,
-        price_open=1.0,
-        sl=None,
-        tp=None,
-        price_current=1.0,
-        profit=0.0,
-        time=0,
-        magic=0,
-        comment="",
-    )
+    return make_position(9, symbol="BTCUSD", price_open=1.0, price_current=1.0)
 
 
 @pytest.mark.parametrize("policy", [{"attempts": 0}, {"delay_seconds": -1.0}])
