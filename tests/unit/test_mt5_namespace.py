@@ -82,7 +82,7 @@ def test_a_broken_install_is_reported_without_breaking_imports_or_tools(
     loaded = MetaTrader5Terminal.load()
     assert isinstance(loaded, Err)
     assert loaded.error.kind is ErrorKind.CONNECTION_FAILED
-    assert str(failure) in loaded.error.message
+    assert loaded.error.message == f"MetaTrader5 is installed but cannot be imported: {failure}"
 
 
 def test_importing_the_library_does_not_import_metatrader5() -> None:

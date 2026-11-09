@@ -55,7 +55,15 @@ hook and gets our names plus MT5's.
   are resolved on every access (no cache), so `pkg.symbol_info is
   pkg.symbol_info` is False, and each access costs a few microseconds. The
   lock covers one call, not a sequence of a script's own calls.
-- Known debt: neither resolved names nor the "not installed" outcome are
-  cached, so tools probing many attributes repeat the import lookup.
+- Known debt:
+  - Neither resolved names nor the import outcome (missing or broken) are
+    cached. Tools that probe many attributes repeat the import lookup, and on
+    a broken install they re-run the failing import each time.
+  - On a broken install, `hasattr` / `getattr(pkg, name, None)` give
+    False / None without a warning; the cause is only in `__cause__` of the
+    AttributeError. Star imports and `dir()` warn instead, and they raise
+    under `-W error`. A 2.x script that uses an MT5 name after the star
+    import still ends in a NameError; the RuntimeWarning beforehand names the
+    cause.
 - `tests/unit/test_mt5_namespace.py` covers the wiring with the fake module,
   and `tests/contract` covers the real one.

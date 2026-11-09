@@ -42,9 +42,7 @@ def import_metatrader5() -> ModuleType | None:
     """
     try:
         return importlib.import_module("MetaTrader5")
-    except ModuleNotFoundError as error:
-        if error.name == "MetaTrader5":
-            return None
-        raise ImportError(f"MetaTrader5 is installed but cannot be imported: {error}") from error
     except Exception as error:
+        if isinstance(error, ModuleNotFoundError) and error.name == "MetaTrader5":
+            return None
         raise ImportError(f"MetaTrader5 is installed but cannot be imported: {error}") from error

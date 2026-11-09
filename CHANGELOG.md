@@ -33,7 +33,8 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
   returns `LegacyPosition` / `LegacyReceipt` named tuples with the fields and
   field order of MT5's `TradePosition` / `OrderSendResult`.
 - The `MetaTrader5` namespace is still re-exported for `import *` and attribute
-  access, but lazily and under the session lock (ADR 0010). `Tick` now means
+  access, but lazily, and each re-exported call holds the session lock (a
+  sequence of calls is not atomic; ADR 0010). `Tick` now means
   the library's quote model, and importing the library no longer imports
   `MetaTrader5`.
 - `Position` carries every `TradePosition` field (`swap`, `identifier`, ...);

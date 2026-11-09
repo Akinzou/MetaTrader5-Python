@@ -50,5 +50,7 @@ def _module_or_warn() -> ModuleType | None:
     except ImportError as error:
         # A star import of a broken install keeps our own names (connect() then
         # reports the failure as Err) and says loudly why the MT5 names are gone.
-        warnings.warn(f"{error}; its names are not re-exported", RuntimeWarning, stacklevel=3)
+        # stacklevel 4: past this helper, public_names and the package
+        # __getattr__, so the warning names the user's import line.
+        warnings.warn(f"{error}; its names are not re-exported", RuntimeWarning, stacklevel=4)
         return None

@@ -67,8 +67,8 @@ class MetaTrader5Terminal:
         try:
             module = import_metatrader5()
         except ImportError as error:
-            message = f"the MetaTrader5 package is installed but cannot be imported: {error}"
-            return Err(TradeError(ErrorKind.CONNECTION_FAILED, message))
+            # import_metatrader5 already says "installed but cannot be imported".
+            return Err(TradeError(ErrorKind.CONNECTION_FAILED, str(error)))
         if module is None:
             return Err(
                 TradeError(
