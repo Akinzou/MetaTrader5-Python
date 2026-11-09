@@ -71,6 +71,8 @@ class Broker:
                 log.info("%s: logged in to %s", self.log, self.server)
                 self._connected = True
                 return True
+            # The adapter released the session, so nothing may trade until a login works.
+            self._connected = False
             log.error("%s: %s", self.log, result.error)
             if not ToEffect:
                 return False

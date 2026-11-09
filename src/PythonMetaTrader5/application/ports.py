@@ -22,6 +22,12 @@ class Credentials:
     path: str | None = None
     timeout_ms: int = 60_000
 
+    def __post_init__(self) -> None:
+        # The type itself enforces the login rule, so no construction path can
+        # hand MT5 True or a float that it would turn into another account.
+        if parse_login(self.login) != self.login:
+            raise ValueError(f"login must be a positive integer, got {self.login!r}")
+
 
 def parse_login(login: object) -> int | None:
     """Account number from an int-like value or an ASCII digit string, else None.

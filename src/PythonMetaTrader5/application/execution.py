@@ -82,14 +82,18 @@ def _confirm(
     errors carrying the receipt, and neither is retried: part of the deal may
     already exist, so re-sending could double it.
     """
-    is_deal = isinstance(request, OrderRequest) and request.pending is None
-    if not is_deal or receipt.retcode == DONE:
+    if (
+        not isinstance(request, OrderRequest)
+        or request.pending is not None
+        or receipt.retcode == DONE
+    ):
         return Ok(receipt)
     if receipt.retcode == DONE_PARTIAL:
         return Err(
             TradeError(
                 ErrorKind.PARTIAL_FILL,
-                f"executed {receipt.volume} of the requested lots",
+                f"executed {receipt.volume} of {request.volume} lots; with RETURN "
+                "filling the rest may still be working as an order",
                 retcode=receipt.retcode,
                 receipt=receipt,
             )

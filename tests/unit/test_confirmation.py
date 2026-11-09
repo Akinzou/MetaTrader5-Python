@@ -8,7 +8,7 @@ from PythonMetaTrader5 import Broker, connect
 from PythonMetaTrader5.adapters.mt5_terminal import MetaTrader5Terminal
 from PythonMetaTrader5.application.ports import Credentials
 from PythonMetaTrader5.application.trader import Trader
-from PythonMetaTrader5.domain.errors import ErrorKind
+from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
 from PythonMetaTrader5.result import Err, Ok
 
 from .fake_mt5 import FakeMT5, symbol_info
@@ -64,13 +64,28 @@ def test_legacy_broker_rejects_logins_it_would_coerce(login: object) -> None:
         Broker(login, "pw", "Demo", terminal=FakeTerminal(), clock=FakeClock())  # type: ignore[arg-type]
 
 
-def test_failed_relogin_keeps_a_working_session() -> None:
+def test_failed_relogin_releases_the_session_so_a_retry_can_recover() -> None:
     mt5 = FakeMT5()
     adapter = MetaTrader5Terminal(mt5)
     assert adapter.connect(Credentials(1, "pw", "s")) == Ok(None)
     mt5.initialize_ok = False
     assert isinstance(adapter.connect(Credentials(1, "bad", "s")), Err)
-    assert "shutdown" not in [name for name, _, _ in mt5.calls]
+    assert [name for name, _, _ in mt5.calls] == ["initialize", "initialize", "shutdown"]
+
+
+def test_broker_stops_trading_after_a_failed_relogin(terminal: FakeTerminal) -> None:
+    with pytest.warns(DeprecationWarning, match="connect"):
+        broker = Broker(1, "pw", "Demo", terminal=terminal, clock=FakeClock())
+    terminal.connect_failure = TradeError(ErrorKind.CONNECTION_FAILED, "down")
+    assert broker.login() is False
+    assert broker.Buy("EURUSD", 0.1) is None
+    assert terminal.sent == []
+
+
+@pytest.mark.parametrize("login", [True, 1.5, 0])
+def test_credentials_refuse_logins_mt5_would_coerce(login: object) -> None:
+    with pytest.raises(ValueError, match="login"):
+        Credentials(login, "pw", "s")  # type: ignore[arg-type]
 
 
 def test_exchange_execution_is_read_from_the_symbol() -> None:

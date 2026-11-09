@@ -23,8 +23,6 @@ from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
 from PythonMetaTrader5.domain.symbol import Filling, SymbolSpec
 from PythonMetaTrader5.result import Err, Ok, Result
 
-# MT5 reports "nothing found" and "call failed" both as None; only last_error()
-# tells them apart. 1 is RES_S_OK.
 # last_error() codes for which order_send provably never left this process
 # (bad arguments, no IPC link, terminal refused). Any other failure (send,
 # receive, timeout) may have reached the server, so its outcome is unknown.
@@ -65,10 +63,9 @@ class MetaTrader5Terminal:
         self._exchange_execution = mt5.SYMBOL_TRADE_EXECUTION_EXCHANGE
         self._not_sent = frozenset(getattr(mt5, name) for name in _NOT_SENT_CODES)
         self._auto_trading_disabled = mt5.RES_E_AUTO_TRADING_DISABLED
+        # MT5 reports "nothing found" and "call failed" both as None; only a
+        # last_error() of RES_S_OK tells "nothing found" apart.
         self._ok = mt5.RES_S_OK
-        # MT5 keeps one session per process; it is only ours to close after a
-        # failed login if no earlier login of this adapter opened it.
-        self._session_open = False
 
     @classmethod
     def load(cls) -> Result[MetaTrader5Terminal, TradeError]:
@@ -92,13 +89,14 @@ class MetaTrader5Terminal:
             server=credentials.server,
             timeout=credentials.timeout_ms,
         ):
-            self._session_open = True
             return Ok(None)
         error = self._last_error()
-        if not self._session_open:
-            # initialize() may have attached to (or launched) the terminal before
-            # the login failed; that half-session makes every later attempt fail.
-            self._mt5.shutdown()
+        # Always released: MT5 has one session per process, so after a failed login
+        # it is unusable for everyone, and a half-open one makes every later
+        # initialize() fail (login(ToEffect=True) could never recover). A per-adapter
+        # "keep the live session" flag was tried and dropped: connect() builds a
+        # new adapter each time, so the flag protected nothing.
+        self._mt5.shutdown()
         return Err(
             TradeError(
                 ErrorKind.CONNECTION_FAILED,
