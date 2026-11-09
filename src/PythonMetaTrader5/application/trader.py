@@ -1,0 +1,281 @@
+"""Trading use cases: open, close, place and cancel orders, query state."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, replace
+from typing import Protocol, TypeVar
+
+from PythonMetaTrader5.application.execution import RetryPolicy, execute
+from PythonMetaTrader5.application.ports import Clock, Terminal
+from PythonMetaTrader5.domain.errors import TradeError
+from PythonMetaTrader5.domain.market import PendingKind, PendingOrder, Position, TradeReceipt
+from PythonMetaTrader5.domain.orders import Side, validate_comment
+from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
+from PythonMetaTrader5.domain.stops import Stop
+from PythonMetaTrader5.domain.symbol import Filling, SymbolSpec
+from PythonMetaTrader5.result import Err, Ok, Result
+
+StopInput = Stop | float | None
+
+
+class _HasMagic(Protocol):
+    @property
+    def magic(self) -> int: ...
+
+
+_M = TypeVar("_M", bound=_HasMagic)
+
+
+@dataclass(frozen=True, slots=True)
+class BatchFailure:
+    """Some items of a batch (close all / cancel all) failed; others may have succeeded."""
+
+    succeeded: tuple[TradeReceipt, ...]
+    errors: tuple[TradeError, ...]
+
+    def __str__(self) -> str:
+        return f"{len(self.errors)} failed, {len(self.succeeded)} succeeded: " + "; ".join(
+            str(e) for e in self.errors
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _Entry:
+    """Validated parameters shared by market and pending entries."""
+
+    spec: SymbolSpec
+    side: Side
+    volume: float
+    comment: str
+
+
+class Trader:
+    def __init__(
+        self,
+        terminal: Terminal,
+        clock: Clock,
+        *,
+        magic: int = 0,
+        deviation: int = 10,
+        retry: RetryPolicy | None = None,
+    ) -> None:
+        self._terminal = terminal
+        self._clock = clock
+        self._magic = magic
+        self._deviation = deviation
+        self._retry = retry or RetryPolicy()
+
+    # ------------------------------------------------------------------ entries
+
+    def open_position(
+        self,
+        symbol: str,
+        side: Side | str,
+        volume: float,
+        *,
+        sl: StopInput = None,
+        tp: StopInput = None,
+        price: float | None = None,
+        comment: str | None = None,
+    ) -> Result[TradeReceipt, TradeError]:
+        """Open a market position; ``sl``/``tp`` floats are prices, ``Stop.points`` distances.
+
+        Without ``price`` the current quote is used and requotes are retried with a
+        fresh quote. An explicit ``price`` is sent once: re-sending the same price
+        after a requote cannot succeed.
+        """
+        entry = self._validate_entry(symbol, side, volume, comment)
+        if isinstance(entry, Err):
+            return entry
+        e = entry.value
+
+        def build() -> Result[OrderRequest | CancelRequest, TradeError]:
+            if price is not None:
+                reference = e.spec.normalize_price(price)
+            else:
+                tick = self._terminal.tick(symbol)
+                if isinstance(tick, Err):
+                    return tick
+                reference = tick.value.entry_price(e.side)
+            return Ok(
+                self._entry_request(
+                    e, reference, sl=sl, tp=tp, filling=e.spec.market_filling(), pending=None
+                )
+            )
+
+        policy = self._retry if price is None else replace(self._retry, attempts=1)
+        return execute(self._terminal, self._clock, build, policy)
+
+    def place_limit_order(
+        self,
+        symbol: str,
+        side: Side | str,
+        volume: float,
+        price: float,
+        *,
+        sl: StopInput = None,
+        tp: StopInput = None,
+        comment: str | None = None,
+    ) -> Result[TradeReceipt, TradeError]:
+        """Place a BUY/SELL LIMIT at ``price``; point stops are measured from that level.
+
+        A limit on the wrong side of the market is refused by the server
+        (INVALID_PRICE) rather than converted into a market order.
+        """
+        entry = self._validate_entry(symbol, side, volume, comment)
+        if isinstance(entry, Err):
+            return entry
+        e = entry.value
+        level = e.spec.normalize_price(price)
+        # RETURN: a resting order must keep its unfilled remainder; FOK/IOC would
+        # cancel it the moment it is not immediately fillable.
+        request = self._entry_request(
+            e, level, sl=sl, tp=tp, filling=Filling.RETURN, pending=PendingKind.LIMIT
+        )
+        return execute(self._terminal, self._clock, lambda: Ok(request), self._retry)
+
+    # ------------------------------------------------------------------- exits
+
+    def close_positions(
+        self,
+        symbol: str | None = None,
+        *,
+        ticket: int | None = None,
+        magic: int | None = None,
+        comment: str | None = None,
+    ) -> Result[list[TradeReceipt], BatchFailure]:
+        """Close matching positions; ``ticket`` takes precedence over ``symbol``."""
+        text = validate_comment(comment)
+        if isinstance(text, Err):
+            return Err(BatchFailure((), (text.error,)))
+        listed = self.positions(None if ticket is not None else symbol, ticket=ticket, magic=magic)
+        if isinstance(listed, Err):
+            return Err(BatchFailure((), (listed.error,)))
+        return self._batch(listed.value, lambda p: self._close_one(p, text.value))
+
+    def cancel_pending_orders(
+        self, symbol: str | None = None, *, magic: int | None = None
+    ) -> Result[list[TradeReceipt], BatchFailure]:
+        listed = self.pending_orders(symbol, magic=magic)
+        if isinstance(listed, Err):
+            return Err(BatchFailure((), (listed.error,)))
+        return self._batch(listed.value, self._cancel_one)
+
+    # ----------------------------------------------------------------- queries
+
+    def positions(
+        self, symbol: str | None = None, *, ticket: int | None = None, magic: int | None = None
+    ) -> Result[list[Position], TradeError]:
+        listed = self._terminal.positions(symbol=symbol, ticket=ticket)
+        return listed if isinstance(listed, Err) else Ok(_with_magic(listed.value, magic))
+
+    def pending_orders(
+        self, symbol: str | None = None, *, magic: int | None = None
+    ) -> Result[list[PendingOrder], TradeError]:
+        listed = self._terminal.pending_orders(symbol=symbol)
+        return listed if isinstance(listed, Err) else Ok(_with_magic(listed.value, magic))
+
+    def shutdown(self) -> None:
+        self._terminal.shutdown()
+
+    # ----------------------------------------------------------------- helpers
+
+    def _validate_entry(
+        self, symbol: str, side: Side | str, volume: float, comment: str | None
+    ) -> Result[_Entry, TradeError]:
+        parsed_side = Side.parse(side)
+        if isinstance(parsed_side, Err):
+            return parsed_side
+        text = validate_comment(comment)
+        if isinstance(text, Err):
+            return text
+        spec = self._terminal.symbol(symbol)
+        if isinstance(spec, Err):
+            return spec
+        lots = spec.value.validate_volume(float(volume))
+        if isinstance(lots, Err):
+            return lots
+        return Ok(_Entry(spec.value, parsed_side.value, lots.value, text.value))
+
+    def _entry_request(
+        self,
+        e: _Entry,
+        reference: float,
+        *,
+        sl: StopInput,
+        tp: StopInput,
+        filling: Filling,
+        pending: PendingKind | None,
+    ) -> OrderRequest:
+        stop_loss, take_profit = _as_stop(sl), _as_stop(tp)
+        return OrderRequest(
+            symbol=e.spec.name,
+            side=e.side,
+            volume=e.volume,
+            price=reference,
+            filling=filling,
+            deviation=self._deviation,
+            magic=self._magic,
+            comment=e.comment,
+            sl=stop_loss.stop_loss(e.side, reference, e.spec) if stop_loss else None,
+            tp=take_profit.take_profit(e.side, reference, e.spec) if take_profit else None,
+            pending=pending,
+        )
+
+    def _close_one(self, position: Position, comment: str) -> Result[TradeReceipt, TradeError]:
+        spec = self._terminal.symbol(position.symbol)
+        if isinstance(spec, Err):
+            return spec
+        side = position.side.opposite
+
+        def build() -> Result[OrderRequest | CancelRequest, TradeError]:
+            tick = self._terminal.tick(position.symbol)
+            if isinstance(tick, Err):
+                return tick
+            return Ok(
+                OrderRequest(
+                    symbol=position.symbol,
+                    side=side,
+                    volume=position.volume,
+                    price=tick.value.entry_price(side),
+                    filling=spec.value.market_filling(),
+                    deviation=self._deviation,
+                    magic=self._magic,
+                    comment=comment,
+                    position=position.ticket,
+                )
+            )
+
+        return execute(self._terminal, self._clock, build, self._retry)
+
+    def _cancel_one(self, order: PendingOrder) -> Result[TradeReceipt, TradeError]:
+        request = CancelRequest(order=order.ticket)
+        return execute(self._terminal, self._clock, lambda: Ok(request), self._retry)
+
+    def _batch(
+        self,
+        items: Iterable[Position] | Iterable[PendingOrder],
+        action: Callable[..., Result[TradeReceipt, TradeError]],
+    ) -> Result[list[TradeReceipt], BatchFailure]:
+        succeeded: list[TradeReceipt] = []
+        errors: list[TradeError] = []
+        for item in items:
+            match action(item):
+                case Ok(receipt):
+                    succeeded.append(receipt)
+                case Err(error):
+                    errors.append(replace(error, ticket=item.ticket))
+        if errors:
+            return Err(BatchFailure(tuple(succeeded), tuple(errors)))
+        return Ok(succeeded)
+
+
+def _as_stop(value: StopInput) -> Stop | None:
+    if value is None or isinstance(value, Stop):
+        return value
+    return Stop.at_price(value)
+
+
+def _with_magic(items: list[_M], magic: int | None) -> list[_M]:
+    return items if magic is None else [item for item in items if item.magic == magic]

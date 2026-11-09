@@ -38,7 +38,10 @@ class TradeError:
     retcode: int | None = None
     # Kept so callers (and the 2.x facade) can inspect the broker's raw answer.
     receipt: TradeReceipt | None = None
+    # Set when the failure concerns one position/order of a batch operation.
+    ticket: int | None = None
 
     def __str__(self) -> str:
         code = f" (retcode {self.retcode})" if self.retcode is not None else ""
-        return f"{self.kind.value}: {self.message}{code}"
+        ticket = f" [ticket {self.ticket}]" if self.ticket is not None else ""
+        return f"{self.kind.value}: {self.message}{code}{ticket}"

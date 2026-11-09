@@ -27,6 +27,7 @@ _SUCCESS = frozenset({10008, 10009, 10010})
 _RETRY = frozenset({10004, 10020, 10021, 10024})
 
 _FAILURES: dict[int, tuple[ErrorKind, str]] = {
+    10004: (ErrorKind.REJECTED, "requote"),
     10006: (ErrorKind.REJECTED, "request rejected by the server"),
     10007: (ErrorKind.REJECTED, "request cancelled by the trader"),
     10011: (ErrorKind.REJECTED, "request processing error"),
@@ -38,7 +39,10 @@ _FAILURES: dict[int, tuple[ErrorKind, str]] = {
     10017: (ErrorKind.TRADE_DISABLED, "trading is disabled"),
     10018: (ErrorKind.MARKET_CLOSED, "market is closed"),
     10019: (ErrorKind.NO_MONEY, "not enough money"),
+    10020: (ErrorKind.REJECTED, "prices changed"),
+    10021: (ErrorKind.NO_PRICE, "no quotes to process the request"),
     10022: (ErrorKind.INVALID_ARGUMENT, "invalid order expiration"),
+    10024: (ErrorKind.REJECTED, "too many requests"),
     10026: (ErrorKind.ALGO_TRADING_DISABLED, "autotrading disabled by the server"),
     10027: (ErrorKind.ALGO_TRADING_DISABLED, "enable Algo Trading in the MetaTrader 5 terminal"),
     10028: (ErrorKind.REJECTED, "request locked for processing"),
