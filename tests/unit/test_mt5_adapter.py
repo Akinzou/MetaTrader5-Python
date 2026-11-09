@@ -42,11 +42,11 @@ def test_connect_passes_credentials_and_reports_failure(
         {"login": 123, "password": "secret", "server": "Demo", "timeout": 5000},
     )
     mt5.initialize_ok, mt5.error = False, (-6, "Authorization failed")
-    result = adapter.connect(Credentials(1, "p", "s", path="C:/mt5/terminal64.exe"))
+    result = adapter.connect(Credentials(1, "hunter2-pw", "s", path="C:/mt5/terminal64.exe"))
     assert isinstance(result, Err)
     assert result.error.kind is ErrorKind.CONNECTION_FAILED
     assert "Authorization failed" in result.error.message
-    assert "p" not in result.error.message.split()
+    assert "hunter2" not in result.error.message
     assert mt5.calls[-2][1] == ("C:/mt5/terminal64.exe",)
     assert mt5.calls[-1][0] == "shutdown"
 

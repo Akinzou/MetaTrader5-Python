@@ -21,7 +21,9 @@ def test_without_metatrader5_package_every_call_is_a_logged_no_op(
     assert broker.GetPositions() == []
     assert broker.Close("EURUSD") is False
     assert broker.BuyLimit("EURUSD", 0.1, 1.0) is None
-    assert broker.CancelOrders("EURUSD") is None
+    caplog.clear()
+    broker.CancelOrders("EURUSD")
+    assert "not connected" in caplog.text
     broker.Disconnect()
     assert "not connected" in caplog.text
 

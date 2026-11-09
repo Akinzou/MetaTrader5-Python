@@ -8,6 +8,7 @@ from PythonMetaTrader5.domain.market import PendingKind, PendingOrder, Position
 from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
 
+from .fake_mt5 import FakeMT5, raw_position
 from .fakes import FakeClock, FakeTerminal, make_position
 
 
@@ -142,3 +143,23 @@ def test_cancel_orders_removes_only_limit_orders(broker: Broker, terminal: FakeT
 def test_disconnect_shuts_the_terminal_down(broker: Broker, terminal: FakeTerminal) -> None:
     broker.Disconnect()
     assert terminal.shut_down
+
+
+def test_login_with_to_effect_keeps_trying_until_it_works(
+    broker: Broker, terminal: FakeTerminal, clock: FakeClock
+) -> None:
+    terminal.connect_failures = 2
+    before = len(terminal.connected_with)
+    assert broker.login(ToEffect=True) is True
+    assert len(terminal.connected_with) - before == 3
+    assert clock.sleeps[-2:] == [1.0, 1.0]
+
+
+def test_broker_without_an_injected_terminal_uses_the_metatrader5_module(
+    no_real_terminal: FakeMT5,
+) -> None:
+    no_real_terminal.positions = (raw_position(ticket=8),)
+    with pytest.warns(DeprecationWarning, match="connect"):
+        broker = Broker(1, "pw", "Demo", clock=FakeClock())
+    assert [p.ticket for p in broker.GetPositions()] == [8]
+    assert no_real_terminal.calls[0][0] == "initialize"

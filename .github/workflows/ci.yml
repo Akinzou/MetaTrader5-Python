@@ -33,8 +33,10 @@ jobs:
       - run: pytest --cov --cov-report=term-missing
 
   windows-mt5:
-    # The real MetaTrader5 wheel exists only on Windows; this proves the adapter
-    # matches the constants of the installed package, not just our fake.
+    # The real MetaTrader5 wheel exists only on Windows. The adapter is built
+    # against it, and tests/contract compares the unit-test fakes with it
+    # (constant values, result field names); elsewhere those tests skip.
+    # Unit tests here still use the fakes, and no terminal is started.
     name: real MetaTrader5 package (Windows)
     runs-on: windows-latest
     steps:

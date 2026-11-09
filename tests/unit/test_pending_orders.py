@@ -7,7 +7,7 @@ from PythonMetaTrader5.domain.stops import Stop
 from PythonMetaTrader5.domain.symbol import Filling
 from PythonMetaTrader5.result import Err, Ok
 
-from .fakes import FakeTerminal
+from .fakes import FakeTerminal, make_position
 
 
 def test_limit_order_is_placed_at_its_level(trader: Trader, terminal: FakeTerminal) -> None:
@@ -60,7 +60,10 @@ def test_queries_filter_by_magic(trader: Trader, terminal: FakeTerminal) -> None
     pending = trader.pending_orders(magic=1)
     assert isinstance(pending, Ok)
     assert [o.ticket for o in pending.value] == [7]
-    assert trader.positions("EURUSD") == Ok([])
+    terminal.open_positions = [make_position(1, magic=1), make_position(2, magic=0)]
+    positions = trader.positions("EURUSD", magic=1)
+    assert isinstance(positions, Ok)
+    assert [p.ticket for p in positions.value] == [1]
 
 
 def test_shutdown_releases_the_terminal(trader: Trader, terminal: FakeTerminal) -> None:

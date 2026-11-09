@@ -64,7 +64,7 @@ def test_legacy_broker_rejects_logins_it_would_coerce(login: object) -> None:
         Broker(login, "pw", "Demo", terminal=FakeTerminal(), clock=FakeClock())  # type: ignore[arg-type]
 
 
-def test_failed_relogin_releases_the_session_so_a_retry_can_recover() -> None:
+def test_failed_relogin_releases_the_session() -> None:
     mt5 = FakeMT5()
     adapter = MetaTrader5Terminal(mt5)
     assert adapter.connect(Credentials(1, "pw", "s")) == Ok(None)
