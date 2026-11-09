@@ -18,6 +18,8 @@ from PythonMetaTrader5.application.trader import Trader as Trader
 from PythonMetaTrader5.connection import connect as connect
 from PythonMetaTrader5.domain.errors import ErrorKind as ErrorKind
 from PythonMetaTrader5.domain.errors import TradeError as TradeError
+from PythonMetaTrader5.domain.inputs import ANY_MAGIC as ANY_MAGIC
+from PythonMetaTrader5.domain.inputs import AnyMagic as AnyMagic
 from PythonMetaTrader5.domain.market import PendingKind as PendingKind
 from PythonMetaTrader5.domain.market import PendingOrder as PendingOrder
 from PythonMetaTrader5.domain.market import Position as Position
@@ -33,6 +35,8 @@ from PythonMetaTrader5.result import Ok as Ok
 from PythonMetaTrader5.result import Result as Result
 
 _OWN_NAMES = (
+    "ANY_MAGIC",
+    "AnyMagic",
     "BatchFailure",
     "Broker",
     "Err",

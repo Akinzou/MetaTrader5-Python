@@ -27,6 +27,9 @@ mt5 = pytest.importorskip("MetaTrader5")
 REQUIRED = ("MT5_LOGIN", "MT5_PASSWORD", "MT5_SERVER")
 # Distinct from any manual trading so cleanup never touches foreign positions.
 MAGIC = 930_117
+# Stands for another bot. Cleaned up before and after, so a killed run cannot
+# break the next one.
+FOREIGN_MAGIC = MAGIC + 1
 SYMBOL = os.environ.get("MT5_SYMBOL", "EURUSD")
 
 
@@ -47,8 +50,10 @@ def trader() -> Iterator[Trader]:
     if account is None or account.trade_mode != mt5.ACCOUNT_TRADE_MODE_DEMO:
         result.value.shutdown()
         pytest.fail("refusing to trade: the account is not a demo account")
+    result.value.close_positions(magic=FOREIGN_MAGIC)
     yield result.value
     result.value.close_positions(magic=MAGIC)
+    result.value.close_positions(magic=FOREIGN_MAGIC)
     result.value.cancel_pending_orders(magic=MAGIC)
     result.value.shutdown()
 
@@ -134,3 +139,46 @@ def test_comment_limit_matches_the_installed_package(
         assert checked is None
         assert code == mt5.RES_E_INVALID_PARAMS, (code, message)
         assert "comment" in message, message
+
+
+def test_close_all_leaves_another_magic_and_a_ticket_still_closes_it(trader: Trader) -> None:
+    # Opened past our library, as another bot or a manual trade would be.
+    if mt5.account_info().margin_mode != mt5.ACCOUNT_MARGIN_MODE_RETAIL_HEDGING:
+        # On netting the deal merges into an existing position and keeps its magic.
+        pytest.skip("needs a hedging account")
+    info = mt5.symbol_info(SYMBOL)
+    # Same order of preference as SymbolSpec.market_filling: FOK, IOC, RETURN.
+    filling = (
+        mt5.ORDER_FILLING_FOK
+        if info.filling_mode & 1
+        else mt5.ORDER_FILLING_IOC
+        if info.filling_mode & 2
+        else mt5.ORDER_FILLING_RETURN
+    )
+    sent = mt5.order_send(
+        {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": SYMBOL,
+            "volume": info.volume_min,
+            "type": mt5.ORDER_TYPE_BUY,
+            "price": mt5.symbol_info_tick(SYMBOL).ask,
+            "deviation": 20,
+            "magic": FOREIGN_MAGIC,
+            "type_filling": filling,
+            "comment": "pmt5 foreign",
+        }
+    )
+    if sent is not None and sent.retcode == mt5.TRADE_RETCODE_MARKET_CLOSED:
+        pytest.skip("market closed")
+    assert sent is not None, mt5.last_error()
+    assert sent.retcode == mt5.TRADE_RETCODE_DONE, sent
+    try:
+        assert isinstance(trader.close_positions(), Ok)
+        foreign = trader.positions(SYMBOL, magic=FOREIGN_MAGIC)
+        assert isinstance(foreign, Ok)
+        assert sent.order in [p.ticket for p in foreign.value]
+    finally:
+        closed = trader.close_positions(ticket=sent.order)
+    assert isinstance(closed, Ok), closed
+    assert len(closed.value) == 1
+    assert trader.positions(SYMBOL, magic=FOREIGN_MAGIC) == Ok([])

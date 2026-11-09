@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from typing import Protocol, TypeVar
 
 from PythonMetaTrader5.domain.errors import TradeError
+from PythonMetaTrader5.domain.inputs import ANY_MAGIC, AnyMagic
 from PythonMetaTrader5.domain.market import TradeReceipt
 from PythonMetaTrader5.result import Err, Ok, Result
 
@@ -53,5 +54,7 @@ def run_batch(
     return Ok(succeeded)
 
 
-def with_magic(items: list[_T], magic: int | None) -> list[_T]:
-    return items if magic is None else [item for item in items if item.magic == magic]
+def with_magic(items: list[_T], magic: int | AnyMagic | None) -> list[_T]:
+    if magic is None or magic is ANY_MAGIC:
+        return items
+    return [item for item in items if item.magic == magic]

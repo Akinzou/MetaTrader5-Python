@@ -10,6 +10,7 @@ from PythonMetaTrader5.application.execution import RetryPolicy
 from PythonMetaTrader5.application.ports import Credentials, parse_login
 from PythonMetaTrader5.application.trader import Trader
 from PythonMetaTrader5.domain.errors import ErrorKind, TradeError
+from PythonMetaTrader5.domain.inputs import own_magic
 from PythonMetaTrader5.result import Err, Ok, Result
 
 log = logging.getLogger("PythonMetaTrader5")
@@ -34,6 +35,9 @@ def connect(
                 ErrorKind.INVALID_ARGUMENT, f"login must be a positive integer, got {login!r}"
             )
         )
+    own = own_magic(magic)
+    if isinstance(own, Err):
+        return own
     loaded = MetaTrader5Terminal.load()
     if isinstance(loaded, Err):
         return loaded
@@ -45,4 +49,4 @@ def connect(
     # Login and server only: account_info() also carries the owner's name and
     # balance, which do not belong in application logs.
     log.info("connected to %s as %s", server, account)
-    return Ok(Trader(terminal, SystemClock(), magic=magic, deviation=deviation, retry=retry))
+    return Ok(Trader(terminal, SystemClock(), magic=own.value, deviation=deviation, retry=retry))

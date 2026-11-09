@@ -73,7 +73,7 @@ with trader:  # shuts the terminal connection down on exit
         case Err(error):
             print("not opened:", error.kind, error.message)
 
-    trader.close_positions("EURUSD", magic=1001)  # only this bot's positions
+    trader.close_positions("EURUSD")  # only this bot's (magic 1001) positions
 ```
 
 ## API
@@ -88,8 +88,8 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
 |---|---|
 | `open_position(symbol, side, volume, *, sl=None, tp=None, price=None, comment=None)` | `Result[TradeReceipt, TradeError]` |
 | `place_limit_order(symbol, side, volume, price, *, sl=None, tp=None, comment=None)` | `Result[TradeReceipt, TradeError]` |
-| `close_positions(symbol=None, *, ticket=None, magic=None, comment=None)` | `Result[list[TradeReceipt], BatchFailure]` |
-| `cancel_pending_orders(symbol=None, *, magic=None, kind=None)` | `Result[list[TradeReceipt], BatchFailure]` |
+| `close_positions(symbol=None, *, ticket=None, magic=<own>, comment=None)` | `Result[list[TradeReceipt], BatchFailure]` |
+| `cancel_pending_orders(symbol=None, *, magic=<own>, kind=None)` | `Result[list[TradeReceipt], BatchFailure]` |
 | `positions(symbol=None, *, ticket=None, magic=None)` | `Result[list[Position], TradeError]` |
 | `pending_orders(symbol=None, *, magic=None, kind=None)` | `Result[list[PendingOrder], TradeError]` |
 | `shutdown()` | `None` |
@@ -116,9 +116,20 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
   the BMP, such as most emoji, count as 2 (combined emoji more). The `MetaTrader5` package refuses 30 or more (measured on 5.0.6231; its
   docs say 31). Longer comments, and comments that are not `str`, are rejected
   before sending, not truncated.
-- **`close_positions()` and `cancel_pending_orders()` without arguments act on
-  the whole account**, including manual trades. A bot should always pass its
-  `magic` (and a symbol); an empty string `""` is rejected.
+- **`close_positions()` and `cancel_pending_orders()` act only on the trader's
+  own `magic`** unless you pass another one (ADR 0011); `magic=None` is still
+  "own". To act on the whole account, manual trades included, pass
+  `magic=ANY_MAGIC`. A `ticket` is closed whatever its magic. `positions()`
+  and `pending_orders()` still list every magic by default.
+- Manual trades have magic 0, the `connect()` default, so set your own `magic`
+  for this to protect them. Until then a close/cancel that affects magic-0
+  items logs a warning; `magic=0` passed explicitly acknowledges it. On a
+  netting account a position keeps the magic of the deal that opened it, so
+  merged volume cannot be told apart by magic; a defaulted close/cancel that
+  matches nothing logs how many items with other magics it left open.
+- A magic must be an integer from 0 to 2\*\*64-1 (MT5's ulong); `connect()`
+  returns `Err(INVALID_ARGUMENT)` otherwise, e.g. for `None`. An empty string
+  `""` as symbol is rejected too.
 - `BatchFailure.errors` names every position/order that failed
   (`TradeError.ticket`). `BatchFailure.succeeded` holds the receipts of the
   ones that worked; their `order` / `deal` are the IDs of the closing deal, not
