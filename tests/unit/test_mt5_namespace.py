@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -53,17 +54,35 @@ def test_without_the_package_only_our_names_exist(monkeypatch: pytest.MonkeyPatc
         _ = PythonMetaTrader5.symbol_info
 
 
-def test_a_broken_install_is_reported_not_hidden(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "failure",
+    [
+        ImportError("DLL load failed while importing _core"),
+        ModuleNotFoundError("No module named 'numpy'", name="numpy"),
+        AttributeError("module 'numpy' has no attribute '_ARRAY_API'"),
+        ValueError("numpy.dtype size changed"),
+    ],
+)
+def test_a_broken_install_is_reported_without_breaking_imports_or_tools(
+    monkeypatch: pytest.MonkeyPatch, failure: Exception
+) -> None:
     def broken(name: str) -> None:
-        raise ImportError("DLL load failed while importing _core")
+        raise failure
 
-    monkeypatch.setattr(mt5_session.importlib, "import_module", broken)
-    with pytest.raises(ImportError, match="DLL load failed"):
+    # Replaces the importlib reference inside mt5_session only, not the stdlib.
+    monkeypatch.setattr(mt5_session, "importlib", SimpleNamespace(import_module=broken))
+    with pytest.warns(RuntimeWarning, match="cannot be imported"):
+        names = star_import()
+    assert "connect" in names  # a script using only connect() still imports
+    assert "symbol_info" not in names
+    assert not hasattr(PythonMetaTrader5, "symbol_info")
+    with pytest.raises(AttributeError, match="cannot be imported") as raised:
         _ = PythonMetaTrader5.symbol_info
+    assert isinstance(raised.value.__cause__, ImportError)
     loaded = MetaTrader5Terminal.load()
     assert isinstance(loaded, Err)
     assert loaded.error.kind is ErrorKind.CONNECTION_FAILED
-    assert "DLL load failed" in loaded.error.message
+    assert str(failure) in loaded.error.message
 
 
 def test_importing_the_library_does_not_import_metatrader5() -> None:
@@ -79,14 +98,3 @@ def test_importing_the_library_does_not_import_metatrader5() -> None:
 def test_dir_lists_our_names_and_the_mt5_names(no_real_terminal: FakeMT5) -> None:
     listed = dir(PythonMetaTrader5)
     assert {"Broker", "connect", "symbol_info", "ORDER_TYPE_BUY"} <= set(listed)
-
-
-def test_a_missing_dependency_of_metatrader5_is_reported_not_hidden(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def numpy_missing(name: str) -> None:
-        raise ModuleNotFoundError("No module named 'numpy'", name="numpy")
-
-    monkeypatch.setattr(mt5_session.importlib, "import_module", numpy_missing)
-    with pytest.raises(ModuleNotFoundError, match="numpy"):
-        _ = PythonMetaTrader5.symbol_info

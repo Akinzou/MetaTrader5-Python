@@ -35,13 +35,16 @@ def import_metatrader5() -> ModuleType | None:
     """The MetaTrader5 module, or None when it is not installed.
 
     Only "not installed" becomes None: it is the normal case outside Windows. A
-    package that is installed but fails to import (a missing DLL, a numpy ABI
-    mismatch) raises, so the real cause is reported where the names are used,
-    instead of surfacing later as a NameError on symbol_info.
+    package that is installed but fails to import raises ImportError, whatever
+    it raised itself: a numpy ABI mismatch can surface as ValueError or
+    AttributeError, and an AttributeError leaking out of the package
+    __getattr__ would read as "no such name" and silently empty the star import.
     """
     try:
         return importlib.import_module("MetaTrader5")
     except ModuleNotFoundError as error:
         if error.name == "MetaTrader5":
             return None
-        raise
+        raise ImportError(f"MetaTrader5 is installed but cannot be imported: {error}") from error
+    except Exception as error:
+        raise ImportError(f"MetaTrader5 is installed but cannot be imported: {error}") from error

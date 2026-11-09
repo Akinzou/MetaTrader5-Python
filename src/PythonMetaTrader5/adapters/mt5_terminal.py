@@ -32,9 +32,6 @@ _NOT_SENT_CODES = (
     "RES_E_INTERNAL_FAIL_CONNECT",
 )
 
-# Every public method holds the process-wide session lock (ADR 0009).
-_serialized = serialized
-
 
 class MetaTrader5Terminal:
     def __init__(self, mt5: Any) -> None:
@@ -81,7 +78,7 @@ class MetaTrader5Terminal:
             )
         return Ok(cls(module))
 
-    @_serialized
+    @serialized
     def connect(self, credentials: Credentials) -> Result[None, TradeError]:
         args = (credentials.path,) if credentials.path else ()
         if self._mt5.initialize(
@@ -106,11 +103,11 @@ class MetaTrader5Terminal:
             )
         )
 
-    @_serialized
+    @serialized
     def shutdown(self) -> None:
         self._mt5.shutdown()
 
-    @_serialized
+    @serialized
     def symbol(self, name: str) -> Result[SymbolSpec, TradeError]:
         info = self._mt5.symbol_info(name)
         if info is None:
@@ -137,7 +134,7 @@ class MetaTrader5Terminal:
             )
         )
 
-    @_serialized
+    @serialized
     def tick(self, name: str) -> Result[Tick, TradeError]:
         tick = self._mt5.symbol_info_tick(name)
         # A zero side means no quote yet; trading at price 0 must never be attempted.
@@ -146,7 +143,7 @@ class MetaTrader5Terminal:
             return Err(TradeError(ErrorKind.NO_PRICE, f"no quote for {name!r}"))
         return Ok(Tick(bid=float(tick.bid), ask=float(tick.ask)))
 
-    @_serialized
+    @serialized
     def send(self, request: OrderRequest | CancelRequest) -> Result[TradeReceipt, TradeError]:
         payload = self._payload(request)
         result = self._mt5.order_send(payload)
@@ -154,7 +151,7 @@ class MetaTrader5Terminal:
             return Err(self._send_failure())
         return Ok(mt5_mapping.receipt(result))
 
-    @_serialized
+    @serialized
     def positions(
         self, *, symbol: str | None = None, ticket: int | None = None
     ) -> Result[list[Position], TradeError]:
@@ -170,7 +167,7 @@ class MetaTrader5Terminal:
         # MT5 ignores `symbol` once `ticket` is given; the port promises both apply.
         return Ok([p for p in found if symbol is None or p.symbol == symbol])
 
-    @_serialized
+    @serialized
     def pending_orders(
         self, *, symbol: str | None = None
     ) -> Result[list[PendingOrder], TradeError]:

@@ -26,8 +26,12 @@ hook and gets our names plus MT5's.
   ABI mismatch would have broken the import itself.
 - **Missing vs broken.** "Not installed" (the normal case outside Windows)
   means MT5 contributes no names. An installed package that fails to import
-  (a missing DLL or dependency) raises where an MT5 name is used, with the
-  real cause, instead of turning into a `NameError` later.
+  (a missing DLL or dependency, a numpy ABI mismatch raising ValueError or
+  AttributeError) is turned into an `ImportError` with the cause. The star
+  import then keeps our names and emits a `RuntimeWarning`, an MT5 name raises
+  `AttributeError` carrying the cause (so `hasattr` and IDEs keep working),
+  and `connect()` returns `Err(CONNECTION_FAILED)`. A raised `ImportError`
+  would crash the star import even for scripts that only use `connect`.
   `adapters/mt5_session.import_metatrader5` is the one import site, shared
   with the adapter.
 - **Locked.** Re-exported functions run under the adapter's process-wide
@@ -47,6 +51,11 @@ hook and gets our names plus MT5's.
 - For type checkers, the module `__getattr__` returns `Any`, so
   `from PythonMetaTrader5 import symbol_info` type-checks, but so does a typo
   like `PythonMetaTrader5.Trder`. Our own names keep their real types.
-- Re-exported functions are wrappers: `__wrapped__` is the MT5 original.
+- Re-exported functions are wrappers: `__wrapped__` is the MT5 original. They
+  are resolved on every access (no cache), so `pkg.symbol_info is
+  pkg.symbol_info` is False, and each access costs a few microseconds. The
+  lock covers one call, not a sequence of a script's own calls.
+- Known debt: neither resolved names nor the "not installed" outcome are
+  cached, so tools probing many attributes repeat the import lookup.
 - `tests/unit/test_mt5_namespace.py` covers the wiring with the fake module,
   and `tests/contract` covers the real one.

@@ -60,8 +60,9 @@ def __getattr__(name: str) -> Any:
     # lazily (ADR 0010). A star import asks for __all__ through this hook too.
     # Names defined in this module always win, e.g. our Tick over MT5's struct.
     if name == "__all__":
-        return [*_OWN_NAMES, *_mt5_namespace.public_names(taken=set(globals()))]
-    return _mt5_namespace.resolve(name, taken=set(globals()))
+        mt5_names = _mt5_namespace.public_names()
+        return [*_OWN_NAMES, *(n for n in mt5_names if n not in globals())]
+    return _mt5_namespace.resolve(name)
 
 
 def __dir__() -> list[str]:
