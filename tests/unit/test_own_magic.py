@@ -16,6 +16,7 @@ from PythonMetaTrader5 import (
     connect,
 )
 from PythonMetaTrader5.application.trader import Trader
+from PythonMetaTrader5.domain.errors import TradeError
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
 from PythonMetaTrader5.result import Err, Ok
 
@@ -238,6 +239,20 @@ def test_a_default_close_that_matches_nothing_says_what_it_left_open(
     assert len(left) == 2
     assert all("ANY_MAGIC" in m for m in left)
     assert terminal.sent == []
+
+
+def test_a_failed_check_for_items_left_open_is_logged_not_dropped(
+    trader: Trader, terminal: FakeTerminal, caplog: pytest.LogCaptureFixture
+) -> None:
+    # The own listing is empty, then the listing of every magic fails: Ok([])
+    # alone would read as "flat" with a merged netting position still open.
+    answers = iter([Ok([]), Err(TradeError(ErrorKind.TERMINAL_ERROR, "IPC timeout"))])
+    terminal.positions = lambda **_: next(answers)  # type: ignore[method-assign]
+    with caplog.at_level(logging.WARNING, logger="PythonMetaTrader5"):
+        assert trader.close_positions("EURUSD") == Ok([])
+    (message,) = [r.getMessage() for r in caplog.records]
+    assert "could not check" in message
+    assert "IPC timeout" in message
 
 
 def test_no_left_open_warning_when_own_items_were_handled(

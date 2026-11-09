@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- A defaulted `close_positions()` / `cancel_pending_orders()` that matched
+  nothing dropped a failure of its follow-up check for items with other magics
+  left open, so `Ok([])` could read as "flat" in silence on a netting account.
+  It now logs a warning that it could not check.
+
+### Changed
+- README: a table of contents, an index of every ADR, and the essentials in
+  one place: connecting, magic-number scope (symbol, ticket, magic 0 on a
+  single-bot account, netting), error kinds with what to do, batch failures,
+  and a checklist before trading real money. The README may have up to 600
+  lines; every other file keeps the 300-line limit. Links to other documents
+  are absolute GitHub URLs, so they also work on PyPI.
+
 ## [3.0.0] - 2026-11-09
 
 Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.

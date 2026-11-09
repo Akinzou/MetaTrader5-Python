@@ -55,7 +55,17 @@ def warn_about_default(
     # that kept another magic, and Ok([]) alone would read as "flat". The extra
     # listing runs only on this path.
     others = everything()
-    if isinstance(others, Ok) and others.value:
+    if not isinstance(others, Ok):
+        # Not turned into an Err: the close/cancel itself did what was asked,
+        # and failing it would make a bot retry an action that already ran.
+        log.warning(
+            "nothing with magic %s to close/cancel, and could not check for items "
+            "with other magics left open: %s",
+            own,
+            others.error,
+        )
+        return
+    if others.value:
         log.warning(
             "nothing with magic %s to close/cancel; %d item(s) with other magics "
             "left open (on netting a deal merges into a position that keeps its "

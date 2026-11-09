@@ -55,7 +55,10 @@ gives trades opened by hand magic 0.
   a property of netting, not of this default. So that `Ok([])` never reads
   as "flat" in silence, a defaulted close/cancel that matches nothing while
   items with other magics are in scope logs a warning naming how many were
-  left open (one extra listing, only on that path). We did not detect the
+  left open (one extra listing, only on that path). If that listing fails,
+  the warning says so instead of dropping the error; the close/cancel stays
+  `Ok`, because it did what was asked and an `Err` would invite a retry of an
+  action that already ran. We did not detect the
   account's margin mode: it would add a port call for a case the warning
   already surfaces.
 - `application/magic_scope.py` holds the rule and its warnings, apart from
