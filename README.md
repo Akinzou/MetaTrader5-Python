@@ -98,9 +98,12 @@ deviation=10, retry=None) -> Result[Trader, TradeError]`
   For limit orders the distance is measured from the limit price, and for a
   market order with an explicit `price` from that price. A float stop that is
   zero, negative or not finite is rejected (`INVALID_STOPS`); pass `None` for
-  no stop. `Stop.points()` / `Stop.at_price()` raise `ValueError` on a zero or
-  non-finite value (a zero stop would mean "no stop" to MT5); the sign of a
-  points distance is ignored. For a value that may be bad at runtime, such as
+  no stop. `Stop.points()` / `Stop.at_price()` raise `ValueError` unless the
+  value is a positive finite number (bool and str included; a zero stop would
+  mean "no stop" to MT5); the sign of a points distance is ignored. A `kind`
+  that is not a `StopKind` raises `TypeError`. A stop that resolves outside
+  the tick grid's range, or to zero or below, is `INVALID_STOPS` when the
+  order is built. For a value that may be bad at runtime, such as
   an ATR that is NaN during warm-up, use
   `Stop.parse(value, StopKind.POINTS)`, which returns `Ok(stop)` /
   `Err(INVALID_STOPS)`.

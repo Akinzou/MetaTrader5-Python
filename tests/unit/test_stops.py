@@ -3,6 +3,7 @@ import pytest
 from PythonMetaTrader5.domain.orders import Side
 from PythonMetaTrader5.domain.stops import Stop
 from PythonMetaTrader5.domain.symbol import SymbolSpec
+from PythonMetaTrader5.result import Ok
 
 SPEC = SymbolSpec(
     name="EURUSD",
@@ -18,8 +19,8 @@ SPEC = SymbolSpec(
 
 
 def test_absolute_stop_is_only_normalized() -> None:
-    assert Stop.at_price(1.123456).stop_loss(Side.BUY, 1.2, SPEC) == 1.12346
-    assert Stop.at_price(1.123456).take_profit(Side.SELL, 1.2, SPEC) == 1.12346
+    assert Stop.at_price(1.123456).stop_loss(Side.BUY, 1.2, SPEC) == Ok(1.12346)
+    assert Stop.at_price(1.123456).take_profit(Side.SELL, 1.2, SPEC) == Ok(1.12346)
 
 
 @pytest.mark.parametrize(
@@ -30,9 +31,9 @@ def test_point_offsets_follow_trade_direction(
     side: Side, stop_loss: float, take_profit: float
 ) -> None:
     reference = 1.1
-    assert Stop.points(1000).stop_loss(side, reference, SPEC) == stop_loss
-    assert Stop.points(1500).take_profit(side, reference, SPEC) == take_profit
+    assert Stop.points(1000).stop_loss(side, reference, SPEC) == Ok(stop_loss)
+    assert Stop.points(1500).take_profit(side, reference, SPEC) == Ok(take_profit)
 
 
 def test_negative_offset_is_treated_as_distance() -> None:
-    assert Stop.points(-1000).stop_loss(Side.BUY, 1.1, SPEC) == 1.09
+    assert Stop.points(-1000).stop_loss(Side.BUY, 1.1, SPEC) == Ok(1.09)

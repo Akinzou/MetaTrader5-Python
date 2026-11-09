@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -47,6 +48,25 @@ class SymbolSpec:
         # index CFDs often have tick 0.25 with 2 digits and reject 5780.13.
         step = self.tick_size if self.tick_size > 0 else self.point
         return round(round(price / step) * step, self.digits)
+
+    def price_on_grid(self, price: float, kind: ErrorKind, what: str) -> Result[float, TradeError]:
+        """``price`` on the tick grid, refused if it is not a usable positive level.
+
+        The one place every sent level (entry price, sl, tp) is put on the grid,
+        so the two ways a positive finite input still goes wrong are checked
+        once: 1e305 / 1e-5 overflows to inf (round(inf) raises), and 1e-6
+        snaps to 0.0, which MT5 reads as "no stop" or "fill at the market".
+        """
+        step = self.tick_size if self.tick_size > 0 else self.point
+        if step <= 0:
+            # Broken symbol data, refused like a zero volume_step.
+            return Err(TradeError(kind, f"{self.name} reports no tick size or point"))
+        if not math.isfinite(price / step):
+            return Err(TradeError(kind, f"{what} {price} is out of range for {self.name}"))
+        level = self.normalize_price(price)
+        if level <= 0:
+            return Err(TradeError(kind, f"{what} {price} snaps to {level} on {self.name}"))
+        return Ok(level)
 
     def validate_volume(self, volume: float) -> Result[float, TradeError]:
         if self.volume_step <= 0:

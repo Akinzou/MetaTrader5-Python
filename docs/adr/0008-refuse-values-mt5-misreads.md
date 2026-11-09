@@ -57,7 +57,10 @@ well.
 - `Stop.points(0)` raises `ValueError` when it is built, instead of the server
   rejecting it with 10016.
 - On the `Result` paths (`sl` / `tp` floats, volume, prices, `Stop.parse`),
-  signalling-NaN Decimals and numbers too large for a float are refused
-  without raising. `float(Decimal("sNaN"))` and `float(10**400)` both raise,
-  so both are handled in `positive_float`. The `Stop` constructors raise
-  `ValueError` on them, like on any other invalid stop.
+  signalling-NaN Decimals and ints too large for a float are refused without
+  raising. `float(Decimal("sNaN"))` and `float(10**400)` both raise, so
+  `positive_float` handles both. Large but finite floats (`1e305`) pass that
+  rule, but they overflow on the tick grid (`1e305 / 1e-5` is `inf`).
+  `SymbolSpec.price_on_grid` is the one place every sent level is put on the
+  grid, and it refuses those as well as levels that snap to 0. The `Stop`
+  constructors raise `ValueError` on any invalid value.

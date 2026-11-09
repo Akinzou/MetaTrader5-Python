@@ -14,7 +14,8 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
   cancel-all with per-ticket outcomes.
 - `Stop.points()` / `Stop.at_price()` for SL/TP; plain floats are prices.
 - `Stop.parse(value, StopKind)` returns `Ok(stop)` / `Err(INVALID_STOPS)` for
-  values that may be bad at runtime; the constructors raise `ValueError`.
+  values that may be bad at runtime; the constructors raise `ValueError`, and
+  a `kind` that is not a `StopKind` raises `TypeError`.
 - Magic-number support for entries and as a filter for close/cancel/queries.
 - Volume validation against the symbol's min/max/step.
 - Filling mode chosen from the symbol's allowed modes.

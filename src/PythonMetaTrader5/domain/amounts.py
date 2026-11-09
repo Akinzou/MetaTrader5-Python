@@ -23,6 +23,10 @@ def positive_float(value: object, *, unsigned: bool = False) -> float | None:
         return None
     try:
         number = abs(float(value)) if unsigned else float(value)
-    except (OverflowError, ValueError):
-        return None  # 10**400 and odd Real subclasses: "not a usable number"
+    except OverflowError:
+        # None rather than raising: an int beyond float range (10**400) is bad
+        # input like NaN, and raising would break the Result boundary. Other
+        # float() errors are not caught: they are bugs in the caller's type and
+        # must keep their traceback.
+        return None
     return number if math.isfinite(number) and number > 0 else None

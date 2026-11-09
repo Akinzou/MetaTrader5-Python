@@ -250,3 +250,32 @@ def test_stop_parse_is_the_non_raising_way_to_build_a_stop() -> None:
 def test_a_stop_kind_must_be_a_stop_kind() -> None:
     with pytest.raises(TypeError, match="StopKind"):
         Stop(1000, "points")  # type: ignore[arg-type]
+
+
+def test_a_finite_price_too_large_for_the_tick_grid_is_refused_not_raised(
+    trader: Trader, terminal: FakeTerminal
+) -> None:
+    for result, kind in (
+        (trader.open_position("EURUSD", "buy", 0.1, price=1e305), ErrorKind.INVALID_PRICE),
+        (trader.place_limit_order("EURUSD", "buy", 0.1, 1e305), ErrorKind.INVALID_PRICE),
+        (trader.open_position("EURUSD", "buy", 0.1, sl=1e305), ErrorKind.INVALID_STOPS),
+        (trader.open_position("EURUSD", "buy", 0.1, tp=1e305), ErrorKind.INVALID_STOPS),
+    ):
+        assert isinstance(result, Err)
+        assert result.error.kind is kind
+    assert terminal.sent == []
+
+
+def test_stop_parse_reports_a_wrong_kind_as_a_type_error_for_any_value() -> None:
+    for value in (0, 5):
+        with pytest.raises(TypeError, match="StopKind"):
+            Stop.parse(value, "points")  # type: ignore[arg-type]
+
+
+def test_a_symbol_without_tick_size_or_point_cannot_price_anything(
+    trader: Trader, terminal: FakeTerminal
+) -> None:
+    terminal.specs["EURUSD"] = replace(EURUSD, tick_size=0.0, point=0.0)
+    result = trader.place_limit_order("EURUSD", "buy", 0.1, 1.05)
+    assert isinstance(result, Err)
+    assert result.error.kind is ErrorKind.INVALID_PRICE

@@ -44,14 +44,12 @@ class Entry:
         if reference is None:
             return Err(TradeError(ErrorKind.NO_PRICE, f"no price for {self.spec.name}"))
         spec, side = self.spec, self.side
-        sl = self.stop_loss.stop_loss(side, reference, spec) if self.stop_loss else None
-        tp = self.take_profit.take_profit(side, reference, spec) if self.take_profit else None
-        for name, level in (("sl", sl), ("tp", tp)):
-            # A tiny price snaps to 0.0 and a long points distance goes below
-            # zero; MT5 would read the first as "no stop".
-            if level is not None and level <= 0:
-                message = f"{name} resolves to {level} on {spec.name}"
-                return Err(TradeError(ErrorKind.INVALID_STOPS, message))
+        sl = self.stop_loss.stop_loss(side, reference, spec) if self.stop_loss else Ok(None)
+        if isinstance(sl, Err):
+            return sl
+        tp = self.take_profit.take_profit(side, reference, spec) if self.take_profit else Ok(None)
+        if isinstance(tp, Err):
+            return tp
         return Ok(
             OrderRequest(
                 symbol=spec.name,
@@ -62,8 +60,8 @@ class Entry:
                 deviation=deviation,
                 magic=magic,
                 comment=self.comment,
-                sl=sl,
-                tp=tp,
+                sl=sl.value,
+                tp=tp.value,
                 pending=pending,
             )
         )
@@ -97,13 +95,16 @@ def validate_entry(
     if isinstance(lots, Err):
         return lots
     parsed_side, text, stop_loss, take_profit, level = values.value
-    on_grid = None if level is None else spec.value.normalize_price(level)
-    if on_grid is not None and on_grid <= 0:
-        # 1e-6 is positive but snaps to 0.0 on a 5-digit grid; a deal at price 0
-        # would fill at the market and silently drop the caller's price.
-        message = f"price {level} snaps to {on_grid} on {spec.value.name}"
-        return Err(TradeError(ErrorKind.INVALID_PRICE, message))
-    return Ok(Entry(spec.value, parsed_side, lots.value, text, stop_loss, take_profit, on_grid))
+    on_grid = (
+        Ok(None)
+        if level is None
+        else spec.value.price_on_grid(level, ErrorKind.INVALID_PRICE, "price")
+    )
+    if isinstance(on_grid, Err):
+        return on_grid
+    return Ok(
+        Entry(spec.value, parsed_side, lots.value, text, stop_loss, take_profit, on_grid.value)
+    )
 
 
 def _caller_values(
