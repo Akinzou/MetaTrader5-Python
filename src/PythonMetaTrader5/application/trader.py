@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
-from typing import Protocol, TypeVar
+from types import TracebackType
 
+from PythonMetaTrader5.application.batch import BatchFailure, run_batch, with_magic
 from PythonMetaTrader5.application.execution import RetryPolicy, execute
 from PythonMetaTrader5.application.ports import Clock, Terminal
 from PythonMetaTrader5.domain.errors import TradeError
@@ -17,27 +17,6 @@ from PythonMetaTrader5.domain.symbol import Filling, SymbolSpec
 from PythonMetaTrader5.result import Err, Ok, Result
 
 StopInput = Stop | float | None
-
-
-class _HasMagic(Protocol):
-    @property
-    def magic(self) -> int: ...
-
-
-_M = TypeVar("_M", bound=_HasMagic)
-
-
-@dataclass(frozen=True, slots=True)
-class BatchFailure:
-    """Some items of a batch (close all / cancel all) failed; others may have succeeded."""
-
-    succeeded: tuple[TradeReceipt, ...]
-    errors: tuple[TradeError, ...]
-
-    def __str__(self) -> str:
-        return f"{len(self.errors)} failed, {len(self.succeeded)} succeeded: " + "; ".join(
-            str(e) for e in self.errors
-        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,15 +131,19 @@ class Trader:
         listed = self.positions(None if ticket is not None else symbol, ticket=ticket, magic=magic)
         if isinstance(listed, Err):
             return Err(BatchFailure((), (listed.error,)))
-        return self._batch(listed.value, lambda p: self._close_one(p, text.value))
+        return run_batch(listed.value, lambda p: self._close_one(p, text.value))
 
     def cancel_pending_orders(
-        self, symbol: str | None = None, *, magic: int | None = None
+        self,
+        symbol: str | None = None,
+        *,
+        magic: int | None = None,
+        kind: PendingKind | None = None,
     ) -> Result[list[TradeReceipt], BatchFailure]:
-        listed = self.pending_orders(symbol, magic=magic)
+        listed = self.pending_orders(symbol, magic=magic, kind=kind)
         if isinstance(listed, Err):
             return Err(BatchFailure((), (listed.error,)))
-        return self._batch(listed.value, self._cancel_one)
+        return run_batch(listed.value, self._cancel_one)
 
     # ----------------------------------------------------------------- queries
 
@@ -168,16 +151,34 @@ class Trader:
         self, symbol: str | None = None, *, ticket: int | None = None, magic: int | None = None
     ) -> Result[list[Position], TradeError]:
         listed = self._terminal.positions(symbol=symbol, ticket=ticket)
-        return listed if isinstance(listed, Err) else Ok(_with_magic(listed.value, magic))
+        return listed if isinstance(listed, Err) else Ok(with_magic(listed.value, magic))
 
     def pending_orders(
-        self, symbol: str | None = None, *, magic: int | None = None
+        self,
+        symbol: str | None = None,
+        *,
+        magic: int | None = None,
+        kind: PendingKind | None = None,
     ) -> Result[list[PendingOrder], TradeError]:
         listed = self._terminal.pending_orders(symbol=symbol)
-        return listed if isinstance(listed, Err) else Ok(_with_magic(listed.value, magic))
+        if isinstance(listed, Err):
+            return listed
+        orders = with_magic(listed.value, magic)
+        return Ok(orders if kind is None else [o for o in orders if o.kind is kind])
 
     def shutdown(self) -> None:
         self._terminal.shutdown()
+
+    def __enter__(self) -> Trader:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.shutdown()
 
     # ----------------------------------------------------------------- helpers
 
@@ -253,29 +254,8 @@ class Trader:
         request = CancelRequest(order=order.ticket)
         return execute(self._terminal, self._clock, lambda: Ok(request), self._retry)
 
-    def _batch(
-        self,
-        items: Iterable[Position] | Iterable[PendingOrder],
-        action: Callable[..., Result[TradeReceipt, TradeError]],
-    ) -> Result[list[TradeReceipt], BatchFailure]:
-        succeeded: list[TradeReceipt] = []
-        errors: list[TradeError] = []
-        for item in items:
-            match action(item):
-                case Ok(receipt):
-                    succeeded.append(receipt)
-                case Err(error):
-                    errors.append(replace(error, ticket=item.ticket))
-        if errors:
-            return Err(BatchFailure(tuple(succeeded), tuple(errors)))
-        return Ok(succeeded)
-
 
 def _as_stop(value: StopInput) -> Stop | None:
     if value is None or isinstance(value, Stop):
         return value
     return Stop.at_price(value)
-
-
-def _with_magic(items: list[_M], magic: int | None) -> list[_M]:
-    return items if magic is None else [item for item in items if item.magic == magic]

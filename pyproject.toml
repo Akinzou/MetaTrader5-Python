@@ -73,8 +73,10 @@ ignore = ["PLR0913", "N999"]
 
 [tool.ruff.lint.per-file-ignores]
 # The 2.x public method names (Buy, GetPositions, ToEffect...) are the compatibility contract.
-"src/PythonMetaTrader5/legacy/*.py" = ["N802", "N803", "N815"]
-"tests/**/*.py" = ["S101", "PLR2004"]
+# PLR0917: BuyLimit/SellLimit accepted price, comment and ticket positionally in 2.x.
+"src/PythonMetaTrader5/legacy/*.py" = ["N802", "N803", "N815", "PLR0917"]
+# S106: tests use throwaway fake credentials.
+"tests/**/*.py" = ["S101", "S106", "PLR2004"]
 
 [tool.mypy]
 strict = true

@@ -75,3 +75,19 @@ def test_invalid_limit_order_never_reaches_the_terminal(
     assert isinstance(result, Err)
     assert result.error.kind is ErrorKind.INVALID_VOLUME
     assert terminal.sent == []
+
+
+def test_cancel_can_be_limited_to_one_order_kind(trader: Trader, terminal: FakeTerminal) -> None:
+    stop = PendingOrder(
+        ticket=8,
+        symbol="EURUSD",
+        side=Side.SELL,
+        kind=PendingKind.STOP,
+        volume=0.1,
+        price=1.0,
+        magic=42,
+        comment="",
+    )
+    terminal.open_orders = [order(5, "EURUSD"), stop]
+    trader.cancel_pending_orders("EURUSD", kind=PendingKind.LIMIT)
+    assert terminal.sent == [CancelRequest(order=5)]

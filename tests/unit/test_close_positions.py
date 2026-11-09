@@ -1,4 +1,5 @@
-from PythonMetaTrader5.application.trader import BatchFailure, Trader
+from PythonMetaTrader5.application.batch import BatchFailure
+from PythonMetaTrader5.application.trader import Trader
 from PythonMetaTrader5.domain.errors import ErrorKind
 from PythonMetaTrader5.domain.market import Position
 from PythonMetaTrader5.domain.orders import Side
