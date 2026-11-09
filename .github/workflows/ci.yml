@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: lint, types, unit tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      # Actions are pinned to commit SHAs: a moved tag cannot inject code into CI.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e ".[dev]"
+      - run: ruff check src tests scripts
+      - run: ruff format --check src tests scripts
+      - run: mypy
+      - run: pytest --cov --cov-report=term-missing
+
+  windows-mt5:
+    # The real MetaTrader5 wheel exists only on Windows; this proves the adapter
+    # matches the constants of the installed package, not just our fake.
+    name: real MetaTrader5 package (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev]"
+      - run: python -c "import MetaTrader5 as m; from PythonMetaTrader5.adapters.mt5_terminal import MetaTrader5Terminal as T; T(m); print('MetaTrader5', m.__version__)"
+      - run: pytest
+
+  semgrep:
+    name: static analysis (Semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # ERROR-severity (high/critical) findings fail the job and block the merge.
+      - run: semgrep scan --config p/python --config p/secrets --config p/github-actions --severity ERROR --error
+      # WARNING-severity (medium) findings are listed for the PR description, not blocking.
+      - run: semgrep scan --config p/python --config p/secrets --config p/github-actions --severity WARNING
+
+  hygiene:
+    name: file length, package build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python scripts/check_file_length.py
+      - run: python -m pip install build twine
+      - run: python -m build
+      - run: twine check --strict dist/*
