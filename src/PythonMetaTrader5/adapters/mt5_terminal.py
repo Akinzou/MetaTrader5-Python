@@ -137,18 +137,18 @@ class MetaTrader5Terminal:
                     f"{name!r} cannot be added to Market Watch: {self._last_error()}",
                 )
             )
-        return Ok(
-            SymbolSpec(
-                name=info.name,
-                digits=int(info.digits),
-                point=float(info.point),
-                tick_size=float(info.trade_tick_size),
-                volume_min=float(info.volume_min),
-                volume_max=float(info.volume_max),
-                volume_step=float(info.volume_step),
-                filling_flags=int(info.filling_mode),
-                exchange_execution=int(info.trade_exemode) == self._exchange_execution,
-            )
+        return SymbolSpec.check(
+            {
+                "name": info.name,
+                "digits": int(info.digits),
+                "point": float(info.point),
+                "tick_size": float(info.trade_tick_size),
+                "volume_min": float(info.volume_min),
+                "volume_max": float(info.volume_max),
+                "volume_step": float(info.volume_step),
+                "filling_flags": int(info.filling_mode),
+                "exchange_execution": int(info.trade_exemode) == self._exchange_execution,
+            }
         )
 
     @_serialized

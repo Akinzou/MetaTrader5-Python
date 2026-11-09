@@ -60,6 +60,9 @@ Complete rewrite. See [MIGRATION.md](MIGRATION.md) for every behaviour change.
 - `sl=0` / `tp=0`, stops that resolve to zero or below, tickets that are not
   positive integers, `volume=True` and non-finite numbers are rejected before
   sending.
+- Symbol data that cannot price an order (point 0 or infinite, volume step
+  0, ...) is refused as `TERMINAL_ERROR` instead of producing NaN prices or
+  stops on the entry price.
 - `positions(symbol, ticket=...)` applies both filters (MT5 drops the symbol
   once a ticket is given).
 - Pending orders on exchange-execution symbols use RETURN filling.

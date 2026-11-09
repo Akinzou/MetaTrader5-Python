@@ -60,7 +60,8 @@ class Stop:
     def _resolve(
         self, direction: int, reference: float, spec: SymbolSpec, what: str
     ) -> Result[float, TradeError]:
-        # A long points distance can go below zero; price_on_grid refuses that.
+        # Resolved without a sign check here: price_on_grid is the single place a
+        # level below zero (a long points distance) or off the grid is refused.
         level = self.value
         if self.kind is StopKind.POINTS:
             level = reference + direction * self.value * spec.point

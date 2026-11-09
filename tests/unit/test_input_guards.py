@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 import threading
-from dataclasses import replace
 from decimal import Decimal
 
 import pytest
@@ -71,15 +70,6 @@ def test_price_that_is_not_a_positive_finite_number_is_refused(
         assert isinstance(result, Err)
         assert result.error.kind is ErrorKind.INVALID_PRICE
     assert terminal.sent == []
-
-
-def test_a_symbol_reporting_volume_step_zero_is_an_error_not_a_crash(
-    trader: Trader, terminal: FakeTerminal
-) -> None:
-    terminal.specs["EURUSD"] = replace(EURUSD, volume_step=0.0)
-    result = trader.open_position("EURUSD", "buy", 0.1)
-    assert isinstance(result, Err)
-    assert result.error.kind is ErrorKind.INVALID_VOLUME
 
 
 @pytest.mark.parametrize("ticket", [0, -5, True, 1.0, "7"])
@@ -270,12 +260,3 @@ def test_stop_parse_reports_a_wrong_kind_as_a_type_error_for_any_value() -> None
     for value in (0, 5):
         with pytest.raises(TypeError, match="StopKind"):
             Stop.parse(value, "points")  # type: ignore[arg-type]
-
-
-def test_a_symbol_without_tick_size_or_point_cannot_price_anything(
-    trader: Trader, terminal: FakeTerminal
-) -> None:
-    terminal.specs["EURUSD"] = replace(EURUSD, tick_size=0.0, point=0.0)
-    result = trader.place_limit_order("EURUSD", "buy", 0.1, 1.05)
-    assert isinstance(result, Err)
-    assert result.error.kind is ErrorKind.INVALID_PRICE

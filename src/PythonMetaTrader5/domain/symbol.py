@@ -43,25 +43,42 @@ class SymbolSpec:
     # market execution and send limits that cancel instead of resting.
     exchange_execution: bool
 
-    def normalize_price(self, price: float) -> float:
+    def __post_init__(self) -> None:
+        # The invariant lives here so pricing code never meets a zero, NaN or
+        # infinite step: point 0 put a points stop on the entry price, point inf
+        # priced orders at NaN. Raised, not returned: such a spec cannot exist;
+        # the adapter turns terminal data into a Result through SymbolSpec.check.
+        problem = _problem(self)
+        if problem is not None:
+            raise ValueError(f"{self.name}: {problem}")
+
+    @staticmethod
+    def check(spec_fields: dict[str, object]) -> Result[SymbolSpec, TradeError]:
+        try:
+            return Ok(SymbolSpec(**spec_fields))  # type: ignore[arg-type]
+        except ValueError as error:
+            return Err(TradeError(ErrorKind.TERMINAL_ERROR, f"broken symbol data: {error}"))
+
+    @property
+    def _step(self) -> float:
         # A price must sit on the tick grid, not merely have `digits` decimals:
         # index CFDs often have tick 0.25 with 2 digits and reject 5780.13.
-        step = self.tick_size if self.tick_size > 0 else self.point
-        return round(round(price / step) * step, self.digits)
+        # A tick size of 0 means the terminal did not report one; point is used.
+        return self.tick_size if self.tick_size > 0 else self.point
+
+    def normalize_price(self, price: float) -> float:
+        return round(round(price / self._step) * self._step, self.digits)
 
     def price_on_grid(self, price: float, kind: ErrorKind, what: str) -> Result[float, TradeError]:
         """``price`` on the tick grid, refused if it is not a usable positive level.
 
-        The one place every sent level (entry price, sl, tp) is put on the grid,
-        so the two ways a positive finite input still goes wrong are checked
-        once: 1e305 / 1e-5 overflows to inf (round(inf) raises), and 1e-6
-        snaps to 0.0, which MT5 reads as "no stop" or "fill at the market".
+        Every caller-supplied level (an explicit entry price, sl, tp) goes through
+        here; quote prices come from the terminal already on the grid. The two
+        ways a positive finite input still goes wrong are checked once: 1e305 /
+        1e-5 overflows to inf (round(inf) raises), and 1e-6 snaps to 0.0, which
+        MT5 reads as "no stop" or "fill at the market".
         """
-        step = self.tick_size if self.tick_size > 0 else self.point
-        if step <= 0:
-            # Broken symbol data, refused like a zero volume_step.
-            return Err(TradeError(kind, f"{self.name} reports no tick size or point"))
-        if not math.isfinite(price / step):
+        if not math.isfinite(price / self._step):
             return Err(TradeError(kind, f"{what} {price} is out of range for {self.name}"))
         level = self.normalize_price(price)
         if level <= 0:
@@ -69,10 +86,6 @@ class SymbolSpec:
         return Ok(level)
 
     def validate_volume(self, volume: float) -> Result[float, TradeError]:
-        if self.volume_step <= 0:
-            # Broken symbol data: refusing is the only safe answer, guessing a
-            # step could send a volume the broker never allowed.
-            return Err(self._volume_error(volume, "not checkable against"))
         if volume < self.volume_min - _EPSILON or volume > self.volume_max + _EPSILON:
             return Err(self._volume_error(volume, "outside"))
         steps = (volume - self.volume_min) / self.volume_step
@@ -103,3 +116,21 @@ class SymbolSpec:
             f"{self.name}: volume {volume} is {reason} "
             f"[{self.volume_min}, {self.volume_max}] step {self.volume_step}",
         )
+
+
+def _problem(spec: SymbolSpec) -> str | None:
+    def usable(value: float) -> bool:
+        return isinstance(value, (int, float)) and math.isfinite(value) and value > 0
+
+    if not usable(spec.point):
+        return f"point {spec.point!r} is not a positive finite number"
+    if not (usable(spec.tick_size) or spec.tick_size == 0):
+        return f"tick size {spec.tick_size!r} is neither 0 nor a positive finite number"
+    for name, value in (("volume_step", spec.volume_step), ("volume_min", spec.volume_min)):
+        if not usable(value):
+            return f"{name} {value!r} is not a positive finite number"
+    if not (usable(spec.volume_max) and spec.volume_max >= spec.volume_min):
+        return f"volume_max {spec.volume_max!r} is below volume_min {spec.volume_min!r}"
+    if spec.digits < 0:
+        return f"digits {spec.digits!r} is negative"
+    return None

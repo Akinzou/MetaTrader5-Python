@@ -61,6 +61,14 @@ well.
   raising. `float(Decimal("sNaN"))` and `float(10**400)` both raise, so
   `positive_float` handles both. Large but finite floats (`1e305`) pass that
   rule, but they overflow on the tick grid (`1e305 / 1e-5` is `inf`).
-  `SymbolSpec.price_on_grid` is the one place every sent level is put on the
-  grid, and it refuses those as well as levels that snap to 0. The `Stop`
+  `SymbolSpec.price_on_grid` is the one place every caller-supplied level is
+  put on the grid, and it refuses those as well as levels that snap to 0.
+  Quote prices come from the terminal already on the grid. The `Stop`
   constructors raise `ValueError` on any invalid value.
+- Broken symbol data from the terminal is the same problem on the other
+  side. A point of 0 put a points stop on the entry price, and a point of
+  inf priced orders at NaN. `SymbolSpec` therefore has an invariant: point,
+  volume step and volume min must be positive and finite, the tick size must
+  be 0 or positive and finite, and volume max must not be below volume min.
+  The adapter turns a violation into `Err(TERMINAL_ERROR)` through
+  `SymbolSpec.check`.

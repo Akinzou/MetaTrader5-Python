@@ -14,7 +14,7 @@ from PythonMetaTrader5.domain.inputs import positive_number, stop_input
 from PythonMetaTrader5.domain.market import PendingKind
 from PythonMetaTrader5.domain.orders import Side, validate_comment
 from PythonMetaTrader5.domain.requests import CancelRequest, OrderRequest
-from PythonMetaTrader5.domain.stops import Stop
+from PythonMetaTrader5.domain.stops import Stop, StopKind
 from PythonMetaTrader5.domain.symbol import SymbolSpec
 from PythonMetaTrader5.result import Err, Ok, Result
 
@@ -95,16 +95,29 @@ def validate_entry(
     if isinstance(lots, Err):
         return lots
     parsed_side, text, stop_loss, take_profit, level = values.value
-    on_grid = (
-        Ok(None)
-        if level is None
-        else spec.value.price_on_grid(level, ErrorKind.INVALID_PRICE, "price")
-    )
+    on_grid = _quote_free_levels(spec.value, level, stop_loss, take_profit)
     if isinstance(on_grid, Err):
         return on_grid
     return Ok(
         Entry(spec.value, parsed_side, lots.value, text, stop_loss, take_profit, on_grid.value)
     )
+
+
+def _quote_free_levels(
+    spec: SymbolSpec, price: float | None, sl: Stop | None, tp: Stop | None
+) -> Result[float | None, TradeError]:
+    # Absolute stops do not depend on the quote, so they are checked here, before
+    # the first tick request: otherwise a stop that can never be valid would sit
+    # through the NO_PRICE retries of a symbol without quotes first.
+    for name, stop in (("sl", sl), ("tp", tp)):
+        if stop is not None and stop.kind is StopKind.PRICE:
+            checked = spec.price_on_grid(stop.value, ErrorKind.INVALID_STOPS, name)
+            if isinstance(checked, Err):
+                return checked
+    if price is None:
+        return Ok(None)
+    level = spec.price_on_grid(price, ErrorKind.INVALID_PRICE, "price")
+    return level if isinstance(level, Err) else Ok(level.value)
 
 
 def _caller_values(
