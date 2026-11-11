@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-11-11
+
+Documentation only: the library code behaves exactly as in 3.0.1.
+
 ### Added
 - Documentation site at <https://akinzou.github.io/MetaTrader5-Python/>: the
   README as the user guide, an API reference generated from the source, the
@@ -15,6 +19,17 @@ All notable changes to this project are documented here. The format follows
 - Docstrings on every public name and method, and on each `ErrorKind` member
   saying what it means. A test fails when a public name has no reference entry
   or no docstring.
+- Diagrams: retries and magic-number scope in the README and user guide;
+  layers, ports, the request flow and concurrency in the architecture page
+  (ADR 0014). The site pins one Mermaid release with an integrity hash, and
+  CI renders every diagram with it. On PyPI, where Mermaid does not render, each one is replaced at
+  publish with a link to the same diagram in that release's README on GitHub.
+- The README links the documentation site right after the description.
+
+### Changed
+- The publish workflow refuses a release until the documentation site has
+  been deployed from the tagged commit, so the site PyPI links to already
+  describes the release.
 
 ## [3.0.1] - 2026-11-09
 
