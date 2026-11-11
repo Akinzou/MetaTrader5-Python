@@ -11,19 +11,25 @@ from PythonMetaTrader5.domain.orders import Side
 
 @dataclass(frozen=True, slots=True)
 class Tick:
+    """The current quote of a symbol."""
+
     bid: float
     ask: float
 
     def entry_price(self, side: Side) -> float:
+        """The price a market order on ``side`` fills at: ask to buy, bid to sell."""
         return self.ask if side is Side.BUY else self.bid
 
     def exit_price(self, side: Side) -> float:
+        """The price that closes a ``side`` position: bid for a long, ask for a short."""
         # Closing a long sells at bid, closing a short buys at ask.
         return self.entry_price(side.opposite)
 
 
 @dataclass(frozen=True, slots=True)
 class Position:
+    """An open position. ``sl`` and ``tp`` are ``None`` when not set."""
+
     ticket: int
     symbol: str
     side: Side
@@ -48,12 +54,15 @@ class Position:
     external_id: str
 
     def to_dict(self) -> dict[str, Any]:
+        """The fields as a dict, with ``side`` as its string value."""
         data = asdict(self)
         data["side"] = self.side.value
         return data
 
 
 class PendingKind(Enum):
+    """The type of a pending order."""
+
     LIMIT = "limit"
     STOP = "stop"
     STOP_LIMIT = "stop_limit"
@@ -61,6 +70,8 @@ class PendingKind(Enum):
 
 @dataclass(frozen=True, slots=True)
 class PendingOrder:
+    """A pending order waiting on the server."""
+
     ticket: int
     symbol: str
     side: Side

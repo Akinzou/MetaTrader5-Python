@@ -1,0 +1,138 @@
+# Documentation site (ADR 0013). Build: `mkdocs build --strict`.
+# No custom hooks or third-party plugins beyond mkdocstrings: Zensical, the
+# successor of Material for MkDocs, reads this file, and every extra plugin
+# would be one more thing that blocks moving there.
+site_name: PythonMetaTrader5
+site_description: Safe, typed trading layer over the official MetaTrader5 Python API
+site_url: https://akinzou.github.io/MetaTrader5-Python/
+repo_url: https://github.com/Akinzou/MetaTrader5-Python
+repo_name: Akinzou/MetaTrader5-Python
+# The guide is the README, included: an edit link would open the stub page.
+edit_uri: ""
+copyright: Copyright &copy; Wiktor Jelen · CC BY-NC 4.0 · Trading carries risk; no warranty
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/finance
+  favicon: assets/favicon.svg
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - navigation.instant
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Akinzou/MetaTrader5-Python
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/PythonMetaTrader5/
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/BARYa55KS8
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          # Static analysis (griffe), never an import: MetaTrader5 is Windows-only
+          # and the package root resolves unknown names through it.
+          paths: [src]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+            merge_init_into_class: true
+            members_order: source
+            filters: ["!^_"]
+            # Dataclass fields carry no docstrings, and a Position without its
+            # fields would be useless.
+            show_if_no_docstring: true
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  # The guide, migration notes and changelog are included from the files
+  # PyPI and GitHub show, so each text has one source. A missing file fails.
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+# Everything that would only warn fails under --strict: a broken link, a
+# missing anchor, or a page left out of the navigation.
+validation:
+  omitted_files: warn
+  absolute_links: info
+  unrecognized_links: warn
+  anchors: warn
+
+nav:
+  - Home: index.md
+  - User guide: guide.md
+  - API reference:
+      - reference/index.md
+      - reference/trading.md
+      - reference/orders.md
+      - reference/results.md
+      - reference/market.md
+      - reference/legacy.md
+  - Architecture:
+      - architecture.md
+      - Decisions (ADR):
+          - adr/index.md
+          - adr/0001-ports-only-at-process-boundaries.md
+          - adr/0002-result-at-boundaries.md
+          - adr/0003-bounded-retries.md
+          - adr/0004-no-gui-automation.md
+          - adr/0005-stdlib-logging.md
+          - adr/0006-legacy-facade.md
+          - adr/0007-filling-and-price-grid.md
+          - adr/0008-refuse-values-mt5-misreads.md
+          - adr/0009-one-lock-per-process.md
+          - adr/0010-keep-the-metatrader5-re-export.md
+          - adr/0011-close-all-defaults-to-own-magic.md
+          - adr/0012-pin-readme-links-at-publish.md
+          - adr/0013-documentation-site.md
+  - Migrating from 2.x: MIGRATION.md
+  - Changelog: CHANGELOG.md

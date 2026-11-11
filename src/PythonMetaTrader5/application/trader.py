@@ -27,6 +27,14 @@ from PythonMetaTrader5.result import Err, Ok, Result
 
 
 class Trader:
+    """Trading calls on one logged-in account; get one from `connect`.
+
+    Every trading call and query returns a `Result`. Orders carry the trader's ``magic``, and
+    close-all / cancel-all act only on it unless told otherwise. A context
+    manager: ``with trader:`` shuts the connection down on exit. Tests build one
+    directly from fakes of the ``Terminal`` and ``Clock`` ports.
+    """
+
     def __init__(
         self,
         terminal: Terminal,
@@ -215,6 +223,7 @@ class Trader:
         magic: int | AnyMagic | None = None,
         kind: PendingKind | None = None,
     ) -> Result[list[PendingOrder], TradeError]:
+        """Every pending order by default, optionally only one ``kind``."""
         checked = magic_filter(magic)
         if isinstance(checked, Err):
             return checked
@@ -228,6 +237,7 @@ class Trader:
         return Ok(orders if kind is None else [o for o in orders if o.kind is kind])
 
     def shutdown(self) -> None:
+        """Close the connection to the terminal."""
         self._terminal.shutdown()
 
     def __enter__(self) -> Trader:

@@ -16,26 +16,35 @@ E = TypeVar("E")
 
 @dataclass(frozen=True, slots=True)
 class Ok(Generic[T]):
+    """A call that succeeded, carrying its ``value``."""
+
     value: T
 
     def is_ok(self) -> bool:
+        """Always ``True``; prefer ``match`` or ``isinstance`` to narrow the type."""
         return True
 
     def is_err(self) -> bool:
+        """Always ``False``."""
         return False
 
 
 @dataclass(frozen=True, slots=True)
 class Err(Generic[E]):
+    """A call that failed in an expected way, carrying its ``error``."""
+
     error: E
 
     def is_ok(self) -> bool:
+        """Always ``False``."""
         return False
 
     def is_err(self) -> bool:
+        """Always ``True``; prefer ``match`` or ``isinstance`` to narrow the type."""
         return True
 
 
 # Union (not PEP 604 `|`) because a generic alias built with `|` cannot be
 # subscripted at runtime on Python 3.10.
 Result = Union[Ok[T], Err[E]]  # noqa: UP007
+"""Either ``Ok(value)`` or ``Err(error)``; every trading call returns one."""

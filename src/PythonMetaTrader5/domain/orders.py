@@ -11,19 +11,24 @@ _SIDE_ALIASES = {"buy": "BUY", "long": "BUY", "sell": "SELL", "short": "SELL"}
 
 
 class Side(Enum):
+    """Trade direction. Calls also accept ``"buy"``, ``"sell"``, ``"long"``, ``"short"``."""
+
     BUY = "buy"
     SELL = "sell"
 
     @property
     def opposite(self) -> Side:
+        """The side that closes a position of this side."""
         return Side.SELL if self is Side.BUY else Side.BUY
 
     @property
     def sign(self) -> int:
+        """``1`` for BUY, ``-1`` for SELL: the direction in which profit grows."""
         return 1 if self is Side.BUY else -1
 
     @classmethod
     def parse(cls, value: Side | str) -> Result[Side, TradeError]:
+        """A `Side`, or ``Err(INVALID_ARGUMENT)`` for an unknown name."""
         if isinstance(value, Side):
             return Ok(value)
         name = _SIDE_ALIASES.get(str(value).strip().lower())

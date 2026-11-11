@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Documentation site at <https://akinzou.github.io/MetaTrader5-Python/>: the
+  README as the user guide, an API reference generated from the source, the
+  architecture overview, every ADR, the migration guide and this changelog
+  (ADR 0013). Built with `mkdocs build --strict` on every pull request and
+  deployed from master. `pip install -e ".[docs]"` installs the toolchain.
+- Docstrings on every public name and method, and on each `ErrorKind` member
+  saying what it means. A test fails when a public name has no reference entry
+  or no docstring.
+
 ## [3.0.1] - 2026-11-09
 
 ### Fixed

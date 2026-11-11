@@ -30,6 +30,11 @@ _RELOGIN_DELAY_SECONDS = 1.0
 
 
 class Broker:
+    """Deprecated 2.x API, kept so existing bots run; use `connect` instead.
+
+    Read the migration guide before upgrading a bot that trades real money.
+    """
+
     RetCodes: ClassVar[dict[int, str]] = {
         10027: "Enable Algo Trading in MetaTrader5 app",
         10018: "Market closed",

@@ -1,6 +1,7 @@
 # PythonMetaTrader5
 
 [![CI](https://github.com/Akinzou/MetaTrader5-Python/actions/workflows/ci.yml/badge.svg)](https://github.com/Akinzou/MetaTrader5-Python/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-online-blue?logo=materialformkdocs&logoColor=white)](https://akinzou.github.io/MetaTrader5-Python/)
 [![PyPI](https://img.shields.io/pypi/v/pythonmetatrader5)](https://pypi.org/project/PythonMetaTrader5/)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/license-CC_BY--NC_4.0-lightgrey.svg)
@@ -46,14 +47,18 @@ the release you are reading (ADR 0012). On PyPI the Contents entries
 above do not jump to their sections; read this page on
 [GitHub](https://github.com/Akinzou/MetaTrader5-Python/blob/master/README.md#contents) for that.
 
+Documentation site, with this guide, the API reference, the architecture and
+every ADR: <https://akinzou.github.io/MetaTrader5-Python/>.
+
 Other documents: [CHANGELOG.md](https://github.com/Akinzou/MetaTrader5-Python/blob/master/CHANGELOG.md) ·
 [MIGRATION.md](https://github.com/Akinzou/MetaTrader5-Python/blob/master/MIGRATION.md) · [docs/architecture.md](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/architecture.md) ·
 [docs/adr](https://github.com/Akinzou/MetaTrader5-Python/tree/master/docs/adr)
 
+<!-- --8<-- [start:guide] -->
 ## Why this library
 
-- **Every trading call returns.** Requotes are retried a bounded number of times
-  with a fresh quote; everything else comes back immediately as a typed error.
+- **Every trading call returns.** Requotes and missing quotes are retried a
+  bounded number of times with a fresh quote; everything else comes back immediately as a typed error.
   (The deprecated `Broker.login(ToEffect=True)` is the one exception: as in
   2.x, it keeps trying until the login works.)
 - **No silent defaults.** Values that MT5 would quietly read as something else
@@ -99,6 +104,7 @@ To stay on the old API: `pip install "PythonMetaTrader5<3"`.
 
 ## Quick start
 
+<!-- --8<-- [start:quickstart] -->
 ```python
 from PythonMetaTrader5 import Err, Ok, Side, Stop, connect
 
@@ -123,6 +129,7 @@ with trader:  # shuts the terminal connection down on exit
 
     trader.close_positions("EURUSD")  # only this bot's (magic 1001) positions
 ```
+<!-- --8<-- [end:quickstart] -->
 
 ## Connecting
 
@@ -429,6 +436,7 @@ to MetaTrader 5. Details: [docs/architecture.md](https://github.com/Akinzou/Meta
 | [0010](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0010-keep-the-metatrader5-re-export.md) | Keep re-exporting the MetaTrader5 namespace, lazily |
 | [0011](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0011-close-all-defaults-to-own-magic.md) | Close-all and cancel-all default to the trader's own magic |
 | [0012](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0012-pin-readme-links-at-publish.md) | Publish from the tag and pin the README's links there |
+| [0013](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0013-documentation-site.md) | A documentation site built from the README and the source |
 
 ## Development
 
@@ -439,6 +447,14 @@ ruff check src tests scripts && ruff format --check src tests scripts
 mypy
 pytest --cov
 python scripts/check_file_length.py
+```
+
+The documentation site (ADR 0013) includes this README as its user guide:
+
+```bash
+pip install -e ".[docs]"
+mkdocs serve            # preview at http://127.0.0.1:8000
+mkdocs build --strict   # what CI runs: broken links and anchors fail
 ```
 
 `tests/contract` compares the unit-test fakes with the installed `MetaTrader5`
@@ -455,3 +471,4 @@ tag and refuses to run from any other ref (ADR 0012).
 
 [CC BY-NC 4.0](https://github.com/Akinzou/MetaTrader5-Python/blob/master/LICENSE). Trading carries risk; this software comes without any
 warranty.
+<!-- --8<-- [end:guide] -->
