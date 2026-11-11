@@ -2,29 +2,16 @@
 
 from __future__ import annotations
 
-import importlib.util
 import shutil
 from pathlib import Path
-from types import ModuleType
 
+import pin_readme_links as pin
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 REPO = "https://github.com/Akinzou/MetaTrader5-Python"
 TAG = "refs/tags/v3.0.1"
 PYPROJECT = '[project]\nname = "x"\nversion = "3.0.1"\n'
-
-
-def load_script() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("pin", ROOT / "scripts" / "pin_readme_links.py")
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-pin = load_script()
 
 
 def project(

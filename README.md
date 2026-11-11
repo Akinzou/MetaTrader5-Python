@@ -224,6 +224,19 @@ magic **0**. Decision and reasoning:
 | `close_positions(ticket=t)` | Position `t`, whatever its magic: you named it. With `magic=` too, `t` closes only if its magic matches |
 | `positions()` / `pending_orders()` | Every magic by default: a read cannot close anything |
 
+```mermaid
+flowchart TD
+    call["close_positions() / cancel_pending_orders()"] --> ticket{"ticket= given?<br/>close_positions only"}
+    ticket -- "yes, no magic=" --> named(["Position ticket, whatever its magic"])
+    ticket -- "yes, with magic=" --> both(["Position ticket, only if its magic matches"])
+    ticket -- no --> magic{"magic="}
+    magic -- "omitted or None" --> own(["Only the trader's own magic, from connect()"])
+    magic -- "an integer, e.g. 7" --> seven(["Only magic 7"])
+    magic -- ANY_MAGIC --> every(["Every magic, manual trades included"])
+    own -. "own magic is 0<br/>and something matched" .-> shared["Warning: manual trades<br/>share magic 0"]
+    own -. "nothing matched while<br/>other magics are open" .-> left["Warning: how many<br/>were left open"]
+```
+
 A magic must be an integer from 0 to 2\*\*64-1 (MT5's ulong). `"42"`, `True`,
 `1.5`, `-1` and `2**64` are refused as `INVALID_ARGUMENT` instead of matching
 nothing and reporting an empty success.
@@ -337,6 +350,22 @@ position/order in a batch.
 | refused before sending: no quote yet (`NO_PRICE`, e.g. a symbol just added to Market Watch) | waited for and rebuilt up to `RetryPolicy.attempts`, then `NO_PRICE`; nothing was sent |
 | refused before sending: anything else | the matching `ErrorKind`, returned at once; nothing was sent |
 
+```mermaid
+flowchart LR
+    build["Build the request<br/>from a fresh quote"] --> sent{"Built<br/>and sent?"}
+    sent -- "refused before leaving<br/>the process" --> refused(["Err, nothing sent"])
+    sent -- "no quote yet" --> left{"Attempts<br/>left?"}
+    sent -- "lost in IPC" --> unknown(["Err OUTCOME_UNKNOWN<br/>check positions() first"])
+    sent -- yes --> answer{"Server<br/>answer"}
+    answer -- "done, or pending<br/>order placed" --> ok(["Ok(receipt)"])
+    answer -- "market deal<br/>partly filled" --> partial(["Err PARTIAL_FILL"])
+    answer -- "timeout, no connection,<br/>market deal only queued" --> unknown
+    answer -- other --> failed(["Err with its ErrorKind"])
+    answer -- "requote and alike" --> left
+    left -- "yes, after delay_seconds" --> build
+    left -- no --> exhausted(["Err NO_PRICE or<br/>RETRIES_EXHAUSTED"])
+```
+
 ```python
 from PythonMetaTrader5 import RetryPolicy, connect
 
@@ -441,6 +470,7 @@ to MetaTrader 5. Details: [docs/architecture.md](https://github.com/Akinzou/Meta
 | [0011](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0011-close-all-defaults-to-own-magic.md) | Close-all and cancel-all default to the trader's own magic |
 | [0012](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0012-pin-readme-links-at-publish.md) | Publish from the tag and pin the README's links there |
 | [0013](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0013-documentation-site.md) | A documentation site built from the README and the source |
+| [0014](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0014-mermaid-diagrams.md) | Diagrams as Mermaid, checked in CI and replaced on PyPI |
 
 ## Development
 
@@ -459,6 +489,7 @@ The documentation site (ADR 0013) includes this README as its user guide:
 pip install -e ".[docs]"
 mkdocs serve            # preview at http://127.0.0.1:8000
 mkdocs build --strict   # what CI runs: broken links and anchors fail
+python scripts/check_diagrams.py   # every Mermaid diagram parses (needs Chrome or Edge)
 ```
 
 `tests/contract` compares the unit-test fakes with the installed `MetaTrader5`

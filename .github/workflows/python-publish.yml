@@ -43,6 +43,23 @@ jobs:
             exit 1
           }
 
+      # The PyPI page links the docs site, so the site shows this release
+      # before the package goes out (ADR 0013). The deploy job itself must have
+      # succeeded: a run whose deploy was skipped (a pull request, a manual run
+      # from the tag) still ends green and proves nothing.
+      - name: Require the docs site deployed from the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          deployed=""
+          for run in $(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/docs.yml/runs?head_sha=$GITHUB_SHA" --jq '.workflow_runs[].id'); do
+            deployed+=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/jobs"               --jq '.jobs[] | select(.name == "publish to GitHub Pages" and .conclusion == "success") | .id')
+          done
+          [ -n "$deployed" ] || {
+            echo "::error::no docs.yml deploy succeeded for $GITHUB_SHA; wait for the master run or re-run it from master"
+            exit 1
+          }
+
       - name: Setup Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -53,6 +70,12 @@ jobs:
 
       - name: Clean previous builds
         run: rm -rf dist build *.egg-info
+
+      # PyPI cannot render Mermaid: each diagram becomes a link to its section
+      # of the README on GitHub (ADR 0014). Before the pinning below, which
+      # pins those links to the tag too.
+      - name: Replace README diagrams with links
+        run: python scripts/replace_readme_diagrams.py
 
       # Fails unless run from the tag v<version> (gh workflow run ... --ref vX.Y.Z),
       # so the package and its README links come from the same release (ADR 0012).

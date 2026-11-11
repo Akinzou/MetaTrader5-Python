@@ -69,6 +69,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: python scripts/check_file_length.py
+      # As the publish workflow does, so twine checks the README PyPI will get.
+      - run: python scripts/replace_readme_diagrams.py
       - run: python -m pip install build twine
       - run: python -m build
       - run: twine check --strict dist/*

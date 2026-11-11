@@ -1,6 +1,6 @@
 # ADR 0013: A documentation site built from the README and the source
 
-- Status: accepted (after 3.0.1, unreleased). Asked for by the package owner on 2026-11-11.
+- Status: accepted (3.0.2). Asked for by the package owner on 2026-11-11.
 
 ## Context
 

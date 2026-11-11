@@ -37,16 +37,39 @@ jobs:
       - run: mkdocs build --strict
         env:
           NO_MKDOCS_2_WARNING: "1"
-      - if: github.event_name != 'pull_request'
+      - if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
+  diagrams:
+    # The browser renders Mermaid, so the build cannot see a broken diagram;
+    # this parses each one in the runner's Chrome against the Mermaid release
+    # mkdocs.yml pins for the site (ADR 0014). A job of its own:
+    # the page runs a third-party script, which must not share a machine with
+    # the site artifact.
+    name: Mermaid diagrams parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python scripts/check_diagrams.py
+
   deploy:
     name: publish to GitHub Pages
-    needs: build
-    # A pull request or a manual run from a branch must not replace the site.
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    # Waits for the diagrams too: a broken one must not reach the site, even
+    # through a merge that skipped the pull request checks. An unpkg.com
+    # outage then holds the deploy back loudly; re-run it when unpkg is up.
+    needs: [build, diagrams]
+    # Only a push to master or a manual run from it replaces the site; a pull
+    # request or a branch never does.
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     # One deployment at a time, and a running one is never cancelled half-way.
     concurrency:
       group: pages

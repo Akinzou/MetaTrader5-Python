@@ -1,0 +1,15 @@
+{#-
+  The one Mermaid release the site loads, with its Subresource Integrity hash
+  (ADR 0014, OWASP ASVS): a changed file on unpkg.com is refused by the
+  browser instead of run on every page. A template, not extra_javascript in
+  mkdocs.yml, because extra_javascript cannot carry an integrity attribute.
+  Before Material's bundle: Material then uses this Mermaid instead of
+  fetching the newest 11.x. scripts/check_diagrams.py reads this tag, so CI
+  parses the diagrams with the same file and hash.
+-#}
+{% extends "base.html" %}
+
+{% block scripts %}
+  <script src="https://unpkg.com/mermaid@11.17.2/dist/mermaid.min.js" integrity="sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2" crossorigin="anonymous"></script>
+  {{ super() }}
+{% endblock %}
