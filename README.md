@@ -14,6 +14,13 @@ A safe, typed trading layer over the official
 Built for bots (webhook executors, signal followers) where a trading call must
 **never hang, never retry blindly, and never fail silently**.
 
+> **Documentation: <https://akinzou.github.io/MetaTrader5-Python/>**
+>
+> This guide, an API reference generated from the source, the architecture and
+> every design decision, searchable. The site follows the latest code on
+> master; the README of a release on PyPI, and the files it links, match that
+> release.
+
 ## Contents
 
 - [Why this library](#why-this-library)
@@ -46,9 +53,6 @@ Links to the other documents point to GitHub; on PyPI they open the files of
 the release you are reading (ADR 0012). On PyPI the Contents entries
 above do not jump to their sections; read this page on
 [GitHub](https://github.com/Akinzou/MetaTrader5-Python/blob/master/README.md#contents) for that.
-
-Documentation site, with this guide, the API reference, the architecture and
-every ADR: <https://akinzou.github.io/MetaTrader5-Python/>.
 
 Other documents: [CHANGELOG.md](https://github.com/Akinzou/MetaTrader5-Python/blob/master/CHANGELOG.md) ·
 [MIGRATION.md](https://github.com/Akinzou/MetaTrader5-Python/blob/master/MIGRATION.md) · [docs/architecture.md](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/architecture.md) ·
