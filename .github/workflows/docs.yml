@@ -1,0 +1,63 @@
+name: Docs
+
+# Built strictly on every pull request; deployed from master, not from the
+# release tag (ADR 0013): a fix to the docs should not wait for a release. The
+# changelog's Unreleased section names what the site describes but PyPI does
+# not have yet. One workflow for both, so the build a pull request checks is
+# the build master publishes.
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    # Strict: a broken link or anchor, a missing README include or a page left
+    # out of the navigation fails. Linux on purpose: it proves the reference
+    # never imports the Windows-only MetaTrader5 package.
+    name: documentation site (mkdocs --strict)
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are pinned to commit SHAs: a moved tag cannot inject code into CI.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ".[docs]"
+      - run: mkdocs build --strict
+        env:
+          NO_MKDOCS_2_WARNING: "1"
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    name: publish to GitHub Pages
+    needs: build
+    # A pull request or a manual run from a branch must not replace the site.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    # One deployment at a time, and a running one is never cancelled half-way.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

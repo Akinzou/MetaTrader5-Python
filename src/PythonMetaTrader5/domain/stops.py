@@ -13,12 +13,21 @@ from PythonMetaTrader5.result import Err, Ok, Result
 
 
 class StopKind(Enum):
+    """How a `Stop` value is read: an absolute price or a distance in points."""
+
     PRICE = "price"
     POINTS = "points"
 
 
 @dataclass(frozen=True, slots=True)
 class Stop:
+    """A stop-loss or take-profit level, as a price or as a distance in points.
+
+    Build one with `Stop.at_price`, `Stop.points` or, for a value that may be
+    bad at runtime, `Stop.parse`. A stop of zero, a negative price or a value
+    that is not finite cannot exist: MT5 would read 0 as "no stop".
+    """
+
     value: float
     kind: StopKind
 
@@ -34,6 +43,11 @@ class Stop:
 
     @classmethod
     def parse(cls, value: object, kind: StopKind) -> Result[Stop, TradeError]:
+        """Build a stop, or return ``Err(INVALID_STOPS)`` for a bad value instead of raising.
+
+        A ``kind`` that is not a `StopKind` is a programming error and still
+        raises ``TypeError``.
+        """
         checked = _checked(value, kind)
         if isinstance(checked, Err):
             return checked
@@ -41,20 +55,28 @@ class Stop:
 
     @classmethod
     def at_price(cls, price: float) -> Stop:
+        """A stop at an absolute ``price``; raises ``ValueError`` unless positive and finite."""
         return cls(price, StopKind.PRICE)
 
     @classmethod
     def points(cls, distance: float) -> Stop:
+        """A stop ``distance`` points from the entry price; the sign is ignored.
+
+        Raises ``ValueError`` for zero or a value that is not finite; use
+        `Stop.parse` for a value that may be bad at runtime.
+        """
         return cls(distance, StopKind.POINTS)
 
     def stop_loss(
         self, side: Side, reference: float, spec: SymbolSpec
     ) -> Result[float, TradeError]:
+        """The stop-loss price for a ``side`` trade entered at ``reference``, on the tick grid."""
         return self._resolve(-side.sign, reference, spec, "sl")
 
     def take_profit(
         self, side: Side, reference: float, spec: SymbolSpec
     ) -> Result[float, TradeError]:
+        """The take-profit price for a ``side`` trade entered at ``reference``, on the tick grid."""
         return self._resolve(side.sign, reference, spec, "tp")
 
     def _resolve(

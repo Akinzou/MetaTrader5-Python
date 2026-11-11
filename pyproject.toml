@@ -34,10 +34,22 @@ classifiers = [
 dependencies = ["MetaTrader5; sys_platform == 'win32'"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.10", "build>=1.2", "twine>=5"]
+# griffelib: tests/unit/test_api_reference.py reads the API the way the docs site does.
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "build>=1.2",
+    "twine>=5",
+    "griffelib>=2,<3",
+]
+# The documentation site (ADR 0013); `mkdocs serve` previews it.
+docs = ["mkdocs-material>=9.8,<10", "mkdocstrings-python>=2.0,<3"]
 
 [project.urls]
 Homepage = "https://github.com/Akinzou/MetaTrader5-Python"
+Documentation = "https://akinzou.github.io/MetaTrader5-Python/"
 "Bug Tracker" = "https://github.com/Akinzou/MetaTrader5-Python/issues"
 # master, not the release tag (ADR 0012): the newest CHANGELOG also lists later fixes.
 Changelog = "https://github.com/Akinzou/MetaTrader5-Python/blob/master/CHANGELOG.md"

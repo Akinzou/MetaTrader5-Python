@@ -13,6 +13,9 @@ __pycache__/
 coverage.xml
 htmlcov/
 
+# Documentation build output (mkdocs build)
+site/
+
 # Local environments and secrets
 .venv/
 .env

@@ -20,6 +20,15 @@ RequestFactory = Callable[[], Result[OrderRequest | CancelRequest, TradeError]]
 
 @dataclass(frozen=True, slots=True)
 class RetryPolicy:
+    """How often a request the server provably did not execute is retried.
+
+    That is a requote, a price change, no quotes or too many requests, each
+    answered with a fresh quote, and a missing quote before sending.
+
+    Raises ``ValueError`` for fewer than one attempt or a negative delay.
+    Timeouts and lost connections are never retried, whatever the policy.
+    """
+
     attempts: int = 3
     delay_seconds: float = 0.5
 

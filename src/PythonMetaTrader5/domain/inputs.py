@@ -67,6 +67,7 @@ class AnyMagic(Enum):
 # magic, and a None read from a missing config key must not widen them to the
 # whole account (ADR 0011).
 ANY_MAGIC: Final = AnyMagic.ANY
+"""Pass as ``magic=`` to act on every magic number, manual trades included."""
 # MT5 stores magic as a ulong; a larger value would overflow in order_send.
 _MAX_MAGIC: Final = 2**64 - 1
 
