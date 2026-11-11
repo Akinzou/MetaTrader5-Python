@@ -13,6 +13,8 @@ copyright: Copyright &copy; Wiktor Jelen · CC BY-NC 4.0 · Trading carries risk
 
 theme:
   name: material
+  # The pinned Mermaid with its integrity hash (ADR 0014).
+  custom_dir: overrides
   icon:
     repo: fontawesome/brands/github
     logo: material/finance
@@ -86,7 +88,14 @@ markdown_extensions:
   - toc:
       permalink: true
   - pymdownx.details
-  - pymdownx.superfences
+  # Mermaid as rendered by Material, themed from the site palette. GitHub
+  # renders the same blocks; for PyPI, which cannot, the publish workflow
+  # swaps each one for a link to it on GitHub (ADR 0014).
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.inlinehilite
   - pymdownx.highlight:
       anchor_linenums: true
@@ -134,5 +143,6 @@ nav:
           - adr/0011-close-all-defaults-to-own-magic.md
           - adr/0012-pin-readme-links-at-publish.md
           - adr/0013-documentation-site.md
+          - adr/0014-mermaid-diagrams.md
   - Migrating from 2.x: MIGRATION.md
   - Changelog: CHANGELOG.md

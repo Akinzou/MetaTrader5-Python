@@ -63,6 +63,9 @@ PythonMetaTrader5 = ["py.typed"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+# Plain imports over per-test importlib loaders: the scripts import each other
+# (mermaid_fences, pin_readme_links), which a file loader would not resolve.
+pythonpath = ["scripts"]
 markers = ["integration: needs a running MetaTrader 5 terminal and MT5_* credentials"]
 
 [tool.coverage.run]

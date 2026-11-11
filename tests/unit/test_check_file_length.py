@@ -2,26 +2,13 @@
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
-from types import ModuleType
 
+import check_file_length as script
 import pytest
-
-SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "check_file_length.py"
-
-
-def load_script() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("check_file_length", SCRIPT)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def run_on(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, lines: int) -> int:
-    script = load_script()
     target = tmp_path / name
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("x\n" * lines, encoding="utf-8")

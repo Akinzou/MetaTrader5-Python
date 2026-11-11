@@ -2,11 +2,17 @@
 
 Clean Architecture with Ports & Adapters. Dependencies point inwards only:
 
-```
-legacy/ (Broker facade) ─┐
-connection.py (connect) ─┼─► application/ ─► domain/ ─► result.py
-adapters/ ───────────────┘        ▲
-   (implement the ports) ─────────┘
+```mermaid
+flowchart LR
+    connect["connect()"] --> trader
+    broker["Broker<br/>2.x facade"] --> trader
+    trader["application/<br/>Trader · execute()"] --> domain["domain/<br/>trading rules"]
+    domain --> result["result.py<br/>Ok · Err"]
+    trader --> ports{{"Ports<br/>Terminal · Clock"}}
+    adapters["adapters/<br/>MetaTrader5Terminal<br/>SystemClock"] -. implement .-> ports
+    adapters --> mt5[("terminal64.exe")]
+    connect -. wires .-> adapters
+    broker -. "default<br/>adapters" .-> adapters
 ```
 
 | Layer | Package | Knows about | I/O |
@@ -25,6 +31,29 @@ There are exactly two, one per process boundary
 - `Terminal`: the MetaTrader 5 terminal (IPC to `terminal64.exe`).
 - `Clock`: waiting between retries.
 
+```mermaid
+classDiagram
+    direction LR
+    class Terminal {
+        <<Protocol>>
+        connect(credentials) Result
+        shutdown()
+        symbol(name) Result~SymbolSpec~
+        tick(name) Result~Tick~
+        send(request) Result~TradeReceipt~
+        positions(symbol, ticket) Result
+        pending_orders(symbol) Result
+    }
+    class Clock {
+        <<Protocol>>
+        sleep(seconds)
+    }
+    Terminal <|.. MetaTrader5Terminal : production
+    Terminal <|.. FakeTerminal : unit tests
+    Clock <|.. SystemClock : production
+    Clock <|.. FakeClock : unit tests
+```
+
 Pure logic (price normalisation, stop resolution, retcode classification,
 volume checks) is plain functions and methods on domain objects, not ports.
 
@@ -40,6 +69,44 @@ volume checks) is plain functions and methods on domain objects, not ports.
    ([ADR 0003](adr/0003-bounded-retries.md)): success → `Ok`; retryable →
    sleep and rebuild with a fresh quote; anything else → `Err` with the receipt.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Bot
+    participant T as Trader
+    participant D as Domain rules
+    participant P as Terminal port
+    participant S as Trade server
+    participant C as Clock port
+    Bot->>T: open_position(...)
+    T->>D: check the caller's values
+    T->>P: symbol(name)
+    T->>D: check volume and price levels against the spec
+    alt refused
+        T-->>Bot: Err, nothing sent
+    else accepted
+        loop at most RetryPolicy.attempts
+            T->>P: tick(name)
+            T->>D: build the request, point stops from this quote
+            alt request built
+                T->>P: send(request)
+                P->>S: order_send
+                S-->>P: retcode
+                P-->>T: TradeReceipt
+                T->>D: classify(retcode)
+            else no quote yet
+                Note over T,D: nothing sent, retried below
+            else other refusal while building
+                T-->>Bot: Err, nothing sent
+            end
+            opt retryable answer, or no quote yet
+                T->>C: sleep(delay_seconds)
+            end
+        end
+        T-->>Bot: Ok(receipt) or Err(TradeError)
+    end
+```
+
 ## Concurrency
 
 `last_error()` in the `MetaTrader5` package is process-global, so the adapter
@@ -47,6 +114,23 @@ holds one module-level lock around every terminal call and the error read that
 explains it ([ADR 0009](adr/0009-one-lock-per-process.md)). The lock and the
 single `MetaTrader5` import live in `adapters/mt5_session.py`, shared with the
 lazy 2.x namespace re-export ([ADR 0010](adr/0010-keep-the-metatrader5-re-export.md)).
+
+```mermaid
+sequenceDiagram
+    participant A as Webhook thread A
+    participant B as Webhook thread B
+    participant L as Process-wide lock
+    participant M as MetaTrader5 module
+    A->>L: acquire
+    B-->>L: acquire, waits
+    A->>M: order_send(request)
+    A->>M: last_error()
+    Note over A,M: the error read belongs to A's call
+    A->>L: release
+    L-->>B: acquired
+    B->>M: positions_get()
+    B->>L: release
+```
 
 ## Errors
 
