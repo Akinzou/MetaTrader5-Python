@@ -7,6 +7,7 @@ import pytest
 
 from PythonMetaTrader5 import Broker, connect
 from PythonMetaTrader5.adapters.mt5_terminal import MetaTrader5Terminal
+from PythonMetaTrader5.application.batch import run_batch
 from PythonMetaTrader5.application.ports import Credentials
 from PythonMetaTrader5.application.trader import Trader
 from PythonMetaTrader5.domain.errors import ErrorKind
@@ -176,3 +177,11 @@ def test_adapter_releases_the_session_after_a_failed_login() -> None:
     mt5.initialize_ok = False
     assert isinstance(MetaTrader5Terminal(mt5).connect(Credentials(1, "pw", "s")), Err)
     assert [name for name, _, _ in mt5.calls] == ["initialize", "shutdown"]
+
+
+def test_a_batch_action_that_returns_no_result_fails_loudly() -> None:
+    # Skipping it would report Ok([]), "everything closed", with the position
+    # still open. The types forbid it; at runtime it must not pass in silence.
+    position = make_position()
+    with pytest.raises(AttributeError):
+        run_batch([position], lambda item: object())  # type: ignore[arg-type,return-value]

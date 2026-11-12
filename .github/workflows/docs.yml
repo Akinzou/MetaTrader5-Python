@@ -24,6 +24,7 @@ jobs:
     # out of the navigation fails. Linux on purpose: it proves the reference
     # never imports the Windows-only MetaTrader5 package.
     name: documentation site (mkdocs --strict)
+    needs: coverage
     runs-on: ubuntu-latest
     steps:
       # Actions are pinned to commit SHAs: a moved tag cannot inject code into CI.
@@ -37,10 +38,40 @@ jobs:
       - run: mkdocs build --strict
         env:
           NO_MKDOCS_2_WARNING: "1"
+      # Only the coverage job's output joins the site: the tests and the dev
+      # tools never run on the machine that uploads it (ADR 0015).
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage
+          path: site
       - if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
+
+  coverage:
+    # The number the README badge shows, measured here and published with the
+    # site (ADR 0015): the HTML report under /coverage/ and the badge's data
+    # in coverage.json. A job of its own: the tests and the dev tools must not
+    # share a machine with the site artifact.
+    name: coverage report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev]"
+      - run: pytest --cov --cov-report=json --cov-report=html:report/coverage
+      - run: python scripts/coverage_badge.py coverage.json report/coverage.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: report
+          if-no-files-found: error
+          retention-days: 1
 
   diagrams:
     # The browser renders Mermaid, so the build cannot see a broken diagram;
