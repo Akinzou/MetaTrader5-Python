@@ -21,9 +21,11 @@ def test_the_badge_shows_the_report_total(tmp_path: Path) -> None:
     assert badge.main([str(report(tmp_path, "100")), str(out)]) == 0
     assert json.loads(out.read_text(encoding="utf-8")) == {
         "schemaVersion": 1,
-        "label": "coverage",
+        "label": "Code Coverage",
         "message": "100%",
         "color": "brightgreen",
+        "namedLogo": "pytest",
+        "logoColor": "white",
     }
 
 
