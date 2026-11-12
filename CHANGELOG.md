@@ -7,8 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
-- A "Code Coverage" badge next to the README title, measured by the tests on
-  master and linked to the full line-by-line report on the documentation site
+- A "Code Coverage" badge next to the title of the README and of the docs
+  site's home page, measured by the tests on master and linked to the full
+  line-by-line report, which also has a "Coverage report" tab on the site
   (ADR 0015).
   Coverage is 100% of lines and branches, release scripts included, and CI
   now requires 100%.

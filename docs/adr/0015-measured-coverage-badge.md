@@ -19,7 +19,9 @@ check it.
   - `coverage.json`, written by `scripts/coverage_badge.py` in the shields.io
     endpoint format.
 
-  The README badge reads that file and links to the report.
+  The badge next to the title of the README and of the site's home page
+  reads that file and links to the report, which also has a tab in the site's
+  navigation.
 - **The number is coverage.py's own.** The badge shows coverage.py's display
   value, which never rounds 99.9 up to 100. A report without totals fails the
   step rather than publish a badge.
