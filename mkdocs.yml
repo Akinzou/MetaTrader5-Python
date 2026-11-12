@@ -147,3 +147,6 @@ nav:
           - adr/0015-measured-coverage-badge.md
   - Migrating from 2.x: MIGRATION.md
   - Changelog: CHANGELOG.md
+  # Absolute, not `coverage/`: the report is built next to the site by the
+  # coverage job, not from docs/, so a relative target fails --strict (ADR 0015).
+  - Coverage report: https://akinzou.github.io/MetaTrader5-Python/coverage/

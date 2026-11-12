@@ -4,7 +4,7 @@ hide:
   - toc
 ---
 
-# PythonMetaTrader5
+# PythonMetaTrader5 [![Code Coverage](https://img.shields.io/endpoint?url=https://akinzou.github.io/MetaTrader5-Python/coverage.json)](https://akinzou.github.io/MetaTrader5-Python/coverage/)
 
 A safe, typed trading layer over the official
 [`MetaTrader5`](https://pypi.org/project/MetaTrader5/) Python package, built
