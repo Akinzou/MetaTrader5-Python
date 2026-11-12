@@ -144,5 +144,6 @@ nav:
           - adr/0012-pin-readme-links-at-publish.md
           - adr/0013-documentation-site.md
           - adr/0014-mermaid-diagrams.md
+          - adr/0015-measured-coverage-badge.md
   - Migrating from 2.x: MIGRATION.md
   - Changelog: CHANGELOG.md

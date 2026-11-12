@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- A coverage badge in the README, measured by the tests on master and linked
+  to the full line-by-line report on the documentation site (ADR 0015).
+  Coverage is 100% of lines and branches, release scripts included, and CI
+  now requires 100%.
+
 ## [3.0.2] - 2026-11-11
 
 Documentation only: the library code behaves exactly as in 3.0.1.

@@ -44,11 +44,14 @@ def run_batch(
     succeeded: list[TradeReceipt] = []
     errors: list[TradeError] = []
     for item in items:
-        match action(item):
-            case Ok(receipt):
-                succeeded.append(receipt)
-            case Err(error):
-                errors.append(replace(error, ticket=item.ticket))
+        # isinstance, not a match without a fallback: an action that broke the
+        # Result contract fails loudly on `.value` instead of being skipped,
+        # which would end in Ok([]), read as "all closed".
+        result = action(item)
+        if isinstance(result, Err):
+            errors.append(replace(result.error, ticket=item.ticket))
+        else:
+            succeeded.append(result.value)
     if errors:
         return Err(BatchFailure(tuple(succeeded), tuple(errors)))
     return Ok(succeeded)

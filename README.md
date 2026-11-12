@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/Akinzou/MetaTrader5-Python/actions/workflows/ci.yml/badge.svg)](https://github.com/Akinzou/MetaTrader5-Python/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-online-blue?logo=materialformkdocs&logoColor=white)](https://akinzou.github.io/MetaTrader5-Python/)
+[![Coverage](https://img.shields.io/endpoint?url=https://akinzou.github.io/MetaTrader5-Python/coverage.json)](https://akinzou.github.io/MetaTrader5-Python/coverage/)
 [![PyPI](https://img.shields.io/pypi/v/pythonmetatrader5)](https://pypi.org/project/PythonMetaTrader5/)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/license-CC_BY--NC_4.0-lightgrey.svg)
@@ -471,6 +472,7 @@ to MetaTrader 5. Details: [docs/architecture.md](https://github.com/Akinzou/Meta
 | [0012](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0012-pin-readme-links-at-publish.md) | Publish from the tag and pin the README's links there |
 | [0013](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0013-documentation-site.md) | A documentation site built from the README and the source |
 | [0014](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0014-mermaid-diagrams.md) | Diagrams as Mermaid, checked in CI and replaced on PyPI |
+| [0015](https://github.com/Akinzou/MetaTrader5-Python/blob/master/docs/adr/0015-measured-coverage-badge.md) | A coverage badge measured on master, with the full report |
 
 ## Development
 
@@ -479,9 +481,12 @@ python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
 ruff check src tests scripts && ruff format --check src tests scripts
 mypy
-pytest --cov
+pytest --cov            # 100% line and branch coverage required
 python scripts/check_file_length.py
 ```
+
+Coverage of the latest master, line by line:
+<https://akinzou.github.io/MetaTrader5-Python/coverage/> (ADR 0015).
 
 The documentation site (ADR 0013) includes this README as its user guide:
 

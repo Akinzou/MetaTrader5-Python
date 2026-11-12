@@ -69,13 +69,16 @@ pythonpath = ["scripts"]
 markers = ["integration: needs a running MetaTrader 5 terminal and MT5_* credentials"]
 
 [tool.coverage.run]
-source = ["PythonMetaTrader5"]
+# scripts/ too: they gate every release (link pinning, diagram replacement).
+source = ["PythonMetaTrader5", "scripts"]
 branch = true
 
 [tool.coverage.report]
-fail_under = 95
+# 100: the README shows the measured coverage, so CI keeps it from slipping
+# unnoticed (ADR 0015).
+fail_under = 100
 show_missing = true
-exclude_also = ["if TYPE_CHECKING:", "raise AssertionError"]
+exclude_also = ["if TYPE_CHECKING:", "raise AssertionError", "if __name__ == .__main__.:"]
 
 [tool.ruff]
 line-length = 100

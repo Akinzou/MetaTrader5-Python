@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import check_file_length as script
@@ -41,3 +42,18 @@ def test_only_the_top_level_readme_is_exempt(
 ) -> None:
     code = run_on(tmp_path, monkeypatch, "docs/README.md", 301)
     assert code == 1
+
+
+def test_binary_files_are_not_counted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    assert run_on(tmp_path, monkeypatch, "docs/assets/logo.png", 5000) == 0
+
+
+def test_the_files_checked_are_the_ones_git_tracks(monkeypatch: pytest.MonkeyPatch) -> None:
+    # git itself is faked: the test must pass outside a checkout too.
+    def ls_files(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert command == ["git", "ls-files"]
+        listing = "\n".join(["README.md", "docs/a.md", "", ""])
+        return subprocess.CompletedProcess(command, 0, listing, "")
+
+    monkeypatch.setattr(script.subprocess, "run", ls_files)
+    assert script.tracked_files() == [Path("README.md"), Path("docs/a.md")]

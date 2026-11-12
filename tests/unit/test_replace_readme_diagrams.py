@@ -133,3 +133,21 @@ def test_a_longer_backtick_fence_closes_a_diagram_as_on_github(
     path = readme(tmp_path, monkeypatch, text)
     assert diagrams.main([]) == 0
     assert "\nKept.\n\n```\ncode\n```\n" in path.read_bytes().decode("utf-8")
+
+
+def test_a_diagram_before_any_heading_links_the_readme_itself(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = readme(tmp_path, monkeypatch, FLOW)
+    assert diagrams.main([]) == 0
+    assert f"]({diagrams.README})" in path.read_bytes().decode("utf-8")
+
+
+def test_a_diagram_holding_a_fence_line_is_refused_and_the_readme_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    original = "## A\n\n```mermaid\n~~~\nflowchart LR\n```\n"
+    path = readme(tmp_path, monkeypatch, original)
+    assert diagrams.main([]) == 1
+    assert "swallowed a code block" in capsys.readouterr().out
+    assert path.read_bytes().decode("utf-8") == original
