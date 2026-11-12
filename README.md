@@ -1,8 +1,7 @@
-# PythonMetaTrader5
+# PythonMetaTrader5 [![Code Coverage](https://img.shields.io/endpoint?url=https://akinzou.github.io/MetaTrader5-Python/coverage.json)](https://akinzou.github.io/MetaTrader5-Python/coverage/)
 
 [![CI](https://github.com/Akinzou/MetaTrader5-Python/actions/workflows/ci.yml/badge.svg)](https://github.com/Akinzou/MetaTrader5-Python/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-online-blue?logo=materialformkdocs&logoColor=white)](https://akinzou.github.io/MetaTrader5-Python/)
-[![Coverage](https://img.shields.io/endpoint?url=https://akinzou.github.io/MetaTrader5-Python/coverage.json)](https://akinzou.github.io/MetaTrader5-Python/coverage/)
 [![PyPI](https://img.shields.io/pypi/v/pythonmetatrader5)](https://pypi.org/project/PythonMetaTrader5/)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/license-CC_BY--NC_4.0-lightgrey.svg)

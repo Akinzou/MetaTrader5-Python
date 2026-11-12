@@ -32,9 +32,14 @@ def main(argv: list[str]) -> int:
     # coverage.py's own display rounding: it never shows 100 for 99.9.
     badge = {
         "schemaVersion": 1,
-        "label": "coverage",
+        "label": "Code Coverage",
         "message": f"{totals['percent_covered_display']}%",
         "color": colour(totals["percent_covered"]),
+        # pytest's logo: the tests behind the number run under pytest, which
+        # drives coverage.py through pytest-cov; coverage.py has no logo of its
+        # own. A coverage service's logo would suggest one this project lacks.
+        "namedLogo": "pytest",
+        "logoColor": "white",
     }
     target.write_text(json.dumps(badge), encoding="utf-8")
     print(f"{target}: coverage {badge['message']}")
